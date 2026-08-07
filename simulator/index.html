@@ -34,6 +34,10 @@
       <button id="helpBtn" class="btn btn-ghost" title="Nasıl kullanılır?">?</button>
     </div>
 
+    <div id="taskCard" class="task-strip empty">
+      <p class="muted">Seansı başlatın; ilk göreviniz burada görünecek.</p>
+    </div>
+
     <div class="topbar-status">
       <div class="score-ring">
         <div id="scoreValue" class="score-value">—</div>
@@ -70,12 +74,12 @@
   <div id="toast" class="toast hidden"></div>
 
   <main class="stage-layout">
-    <!-- SOL: Görev Rehberi + Değerlendirme + AI -->
+    <!-- SOL: Kümülatif Komplikasyon + Canlı Değerlendirme + AI -->
     <div class="col col-left">
       <section class="panel">
-        <h2 class="panel-title">🎯 Görev Rehberi</h2>
-        <div id="taskCard" class="task-card empty">
-          <p class="muted">Seansı başlatın; ilk göreviniz burada görünecek.</p>
+        <h2 class="panel-title">� Kümülatif Komplikasyon</h2>
+        <div id="compBoard" class="comp-board empty">
+          <p class="muted">Hatalar biriktikçe en olası komplikasyonlar burada (max 5) görünür.</p>
         </div>
       </section>
 
@@ -87,13 +91,6 @@
           <div class="counter"><div id="cntWrong" class="counter-num bad">0</div><div class="counter-lbl">Hatalı</div></div>
           <div class="counter"><div id="cntSterile" class="counter-num warn">0</div><div class="counter-lbl">Steril İhlali</div></div>
           <div class="counter"><div id="cntHint" class="counter-num info">0</div><div class="counter-lbl">İpucu</div></div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2 class="panel-title">🚨 Kümülatif Komplikasyon</h2>
-        <div id="compBoard" class="comp-board empty">
-          <p class="muted">Hatalar biriktikçe en olası komplikasyonlar burada (max 5) görünür.</p>
         </div>
       </section>
 

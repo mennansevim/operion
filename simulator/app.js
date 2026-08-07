@@ -492,12 +492,13 @@ function setStep(step) {
 
   const allowed = step.allowedInstruments?.length ? step.allowedInstruments : (meta?.allowed || []);
   els.taskCard.classList.remove("empty");
-  els.taskCard.innerHTML = `
-    <div class="task-head"><span class="task-step-id">Adım ${id}</span><span class="task-phase">${meta?.phase ?? step.phase ?? ""}</span></div>
-    <div class="task-title">${step.title ?? meta?.title ?? ""}</div>
-    <div class="task-instruction">${meta?.instruction ?? ""}</div>
-    <div class="task-row"><span class="k">Beklenen olay</span><span class="chip">${step.expectedEvent ?? meta?.event ?? "-"}</span></div>
-    <div class="task-row"><span class="k">Doğru alet</span><span class="chip-list">${allowed.map((c) => `<span class="chip hi">${labelOf(c)}</span>`).join("") || "<span class='muted'>-</span>"}</span></div>`;
+  els.taskCard.innerHTML =
+    `<div class="ts-badge">Adım ${id}</div>` +
+    `<div class="ts-body">` +
+      `<div class="ts-title">${escapeHtml(step.title ?? meta?.title ?? "")}</div>` +
+      `<div class="ts-inst">${escapeHtml(meta?.instruction ?? "")}</div>` +
+    `</div>` +
+    `<div class="ts-chips">${allowed.map((c) => `<span class="chip hi">${escapeHtml(labelOf(c))}</span>`).join("") || "<span class='muted'>-</span>"}</div>`;
 
   updateSceneMode(step);
   updateStepList(id);
