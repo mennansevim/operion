@@ -114,6 +114,7 @@ public sealed class ProcedureService
         // Correct action.
         _scoring.Apply(session, step.SuccessScore);
         session.CorrectActions++;
+        session.ConsecutiveErrors = 0;
         session.CurrentStepId = step.NextStepId;
         var completed = step.NextStepId is null;
 
@@ -134,9 +135,13 @@ public sealed class ProcedureService
         string? expected, string? actual, string message)
     {
         session.WrongActions++;
+        session.ConsecutiveErrors++;
         var penalty = step.Penalties.TryGetValue(type, out var p) ? p : DefaultPenalty(type);
-        _scoring.Apply(session, -penalty);
-        var severity = _store.GetClinicalEntry(step.StepId, type)?.Severity ?? "MEDIUM";
+        // Ardışık hatalarda ceza kademeli olarak ağırlaşır.
+        var escalatedPenalty = penalty + (session.ConsecutiveErrors - 1) * 3;
+        _scoring.Apply(session, -escalatedPenalty);
+        var baseSeverity = _store.GetClinicalEntry(step.StepId, type)?.Severity ?? "MEDIUM";
+        var severity = EscalateSeverity(baseSeverity, session.ConsecutiveErrors);
 
         return new ValidationOutcome
         {
@@ -146,8 +151,16 @@ public sealed class ProcedureService
             Deviation = new DeviationDto { DeviationType = type, Expected = expected, Actual = actual, Severity = severity },
             Message = message,
             AllowRetry = true,
-            ScoreChange = -penalty
+            ScoreChange = -escalatedPenalty
         };
+    }
+
+    // Ardışık hata sayısına göre klinik şiddeti bir üst kademeye taşır.
+    private static string EscalateSeverity(string baseSeverity, int streak)
+    {
+        var rank = baseSeverity switch { "LOW" => 1, "MEDIUM" => 2, "HIGH" => 3, "CRITICAL" => 4, _ => 2 };
+        rank += Math.Max(0, streak - 1);
+        return rank switch { <= 1 => "LOW", 2 => "MEDIUM", 3 => "HIGH", _ => "CRITICAL" };
     }
 
     private static bool CountsMatch(Dictionary<string, int> expected, Dictionary<string, int>? actual)

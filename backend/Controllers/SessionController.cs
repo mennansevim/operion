@@ -16,16 +16,19 @@ public sealed class SessionController : ControllerBase
     private readonly OperionDbContext _db;
     private readonly ProcedureStore _store;
     private readonly ProcedureService _procedure;
+    private readonly ComplicationEngine _complications;
     private readonly IHubContext<SimulationHub> _hub;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SessionController> _logger;
 
     public SessionController(OperionDbContext db, ProcedureStore store, ProcedureService procedure,
-        IHubContext<SimulationHub> hub, IServiceScopeFactory scopeFactory, ILogger<SessionController> logger)
+        ComplicationEngine complications, IHubContext<SimulationHub> hub, IServiceScopeFactory scopeFactory,
+        ILogger<SessionController> logger)
     {
         _db = db;
         _store = store;
         _procedure = procedure;
+        _complications = complications;
         _hub = hub;
         _scopeFactory = scopeFactory;
         _logger = logger;
@@ -127,9 +130,18 @@ public sealed class SessionController : ControllerBase
             new ScoreUpdateDto { SessionId = sessionId, Score = session.Score });
 
         AiFeedbackDto? complication = null;
+        CumulativeComplicationDto? cumulative = null;
         if (outcome.Deviation is not null)
         {
             complication = BuildComplication(sessionId, ev.EventId, outcome.CurrentStepId, outcome.Deviation);
+
+            var deviations = await _db.SessionEvents
+                .Where(e => e.SessionId == sessionId && e.DeviationType != null)
+                .OrderBy(e => e.CreatedAt)
+                .Select(e => new DeviationSample(e.StepId, e.DeviationType!))
+                .ToListAsync();
+            cumulative = _complications.Build(deviations, session.ConsecutiveErrors);
+
             var hasAdhesion = _store.GetScenario(session.ScenarioId)?.Patient.HasAdhesion ?? false;
             QueueAiFeedback(sessionId, sessionEventId, ev.EventId, outcome.CurrentStepId, outcome.Deviation, hasAdhesion);
         }
@@ -145,7 +157,8 @@ public sealed class SessionController : ControllerBase
             AllowRetry = outcome.AllowRetry,
             Completed = outcome.Completed,
             NextStep = outcome.NextStep,
-            Complication = complication
+            Complication = complication,
+            CumulativeComplication = cumulative
         });
     }
 

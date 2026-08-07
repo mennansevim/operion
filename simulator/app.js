@@ -69,6 +69,27 @@ const state = {
 };
 let trafficCount = 0;
 
+const monitor = {
+  stress: 0,
+  heartRate: 76,
+  pulseRate: 74,
+  respRate: 14,
+  targetHeartRate: 76,
+  targetPulseRate: 74,
+  targetRespRate: 14,
+  breathPhase: 0,
+  wavePhase: 0,
+  lastTick: 0,
+  timerId: null,
+  currentRiskScore: 0,
+  currentStreak: 0,
+  audioEnabled: true,
+  audioReady: false,
+  audioCtx: null,
+  noiseSource: null,
+  noiseGain: null,
+};
+
 // ---- DOM kısayolları ----
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -78,9 +99,11 @@ const els = {
   toast: $("toast"),
   taskCard: $("taskCard"), verdictBanner: $("verdictBanner"),
   cntCorrect: $("cntCorrect"), cntWrong: $("cntWrong"), cntSterile: $("cntSterile"), cntHint: $("cntHint"),
+  compBoard: $("compBoard"),
+  hrValue: $("hrValue"), pulseValue: $("pulseValue"), respValue: $("respValue"), riskValue: $("riskValue"),
+  monitorState: $("monitorState"), vitalWave: $("vitalWave"), audioToggle: $("audioToggle"),
   aiCard: $("aiCard"),
   handHolding: $("handHolding"), sutureWrap: $("sutureWrap"), sutureSelect: $("sutureSelect"),
-  focusMode: $("focusMode"),
   autoBtn: $("autoBtn"), releaseBtn: $("releaseBtn"),
   countMode: $("countMode"), countSendBtn: $("countSendBtn"),
   cntCompress: $("cntCompress"), cntInstrument: $("cntInstrument"), cntNeedle: $("cntNeedle"),
@@ -96,6 +119,16 @@ const els = {
 const baseUrl = () => els.baseUrl.value.replace(/\/+$/, "");
 const nowIso = () => new Date().toISOString();
 const timeLabel = () => new Date().toLocaleTimeString("tr-TR");
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+function escapeHtml(v) {
+  return String(v ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 
 function toast(kind, msg) {
   els.toast.textContent = msg;
@@ -194,6 +227,7 @@ async function startSession() {
     setVerdict("idle", `Seans başladı — ${data.scenarioName}`);
     toast("info", "Seans başladı. İlk görevinizi yapın.");
     log("success", "← Seans Başladı", data);
+    if (monitor.audioEnabled) ensureAudio();
     await connectHub();
   } catch (e) {
     log("error", "✕ Başlatma Hatası", formatError(e));
@@ -253,6 +287,11 @@ function handleResponse(sentType, data) {
         `${data.complication.deviationType} · ${data.complication.possibleRisk || ""}`);
       showAiFeedback(data.complication);
     }
+    // Kümülatif komplikasyon panosu + hasta monitörü tepkisi.
+    if (data.cumulativeComplication) {
+      renderComplications(data.cumulativeComplication);
+      applyDeviationToMonitor(data.cumulativeComplication, d.severity);
+    }
   } else if (sentType === "hint_requested") {
     if (!replay) state.counters.hint++;
     setVerdict("info", "İPUCU");
@@ -267,6 +306,7 @@ function handleResponse(sentType, data) {
     aiState("ok", data.completed ? "🏁 Prosedür doğru tamamlandı." : `✓ Süreç doğru ilerliyor${next}`);
     toast("good", data.message || "Doğru aksiyon.");
     log("success", "✓ Doğru Aksiyon", data.message || "");
+    relaxMonitor();
   }
   updateCounters();
 
@@ -450,15 +490,6 @@ function labelOf(code) {
   return INSTRUMENT_CATALOG.find((i) => i.code === code)?.name ?? code;
 }
 
-function applyFocusMode(allowedSet) {
-  const focusOn = !!els.focusMode?.checked;
-  const hasAllowed = allowedSet && allowedSet.size > 0;
-  els.instrumentGrid.querySelectorAll(".tray-card").forEach((c) => {
-    const visible = !focusOn || !hasAllowed || allowedSet.has(c.dataset.code);
-    c.classList.toggle("focus-hide", !visible);
-  });
-}
-
 function updateSceneMode(step) {
   const meta = step ? stepMeta(step.stepId) : null;
   const isCount = meta?.event === "count_confirmed";
@@ -480,7 +511,6 @@ function updateSceneMode(step) {
   const allowed = new Set(step ? (step.allowedInstruments?.length ? step.allowedInstruments : meta?.allowed || []) : []);
   els.instrumentGrid.querySelectorAll(".tray-card").forEach((c) =>
     c.classList.toggle("expected", allowed.has(c.dataset.code)));
-  applyFocusMode(allowed);
 
   // Beklenen bölge vurgusu.
   const zone = meta?.target || "SURGEON";
@@ -498,6 +528,192 @@ function resetCounters() {
   updateCounters();
   els.aiCard.classList.add("empty");
   els.aiCard.innerHTML = `<p class="muted">Bir hata yaptığınızda, olası klinik komplikasyon ve doğru müdahale açıklaması burada belirir.</p>`;
+  resetComplications();
+  baselineVitals();
+  setMonitorLevel("STABLE");
+}
+
+// ---- Kümülatif komplikasyon panosu ----
+function renderComplications(assess) {
+  if (!assess || !assess.items || assess.items.length === 0) { resetComplications(); return; }
+  const rows = assess.items.map((it) => `
+    <div class="comp-item ${it.primary ? "primary" : ""}">
+      <div class="comp-row">
+        <span class="comp-dev">${escapeHtml(it.deviationType)}</span>
+        ${it.primary ? '<span class="comp-tag">EN OLASI</span>' : ""}
+        <span class="comp-prob">%${it.probability}</span>
+      </div>
+      <div class="comp-risk">${escapeHtml(it.risk)}</div>
+      <div class="comp-bar"><span style="width:${it.probability}%"></span></div>
+      <div class="comp-meta">${it.occurrences}× tekrar · şiddet ${escapeHtml(it.severity)}</div>
+    </div>`).join("");
+  els.compBoard.classList.remove("empty");
+  els.compBoard.innerHTML =
+    `<div class="comp-summary">${escapeHtml(assess.summary)}</div><div class="comp-list">${rows}</div>`;
+}
+
+function resetComplications() {
+  if (!els.compBoard) return;
+  els.compBoard.classList.add("empty");
+  els.compBoard.innerHTML = `<p class="muted">Hatalar biriktikçe en olası komplikasyonlar burada (max 5) görünür.</p>`;
+}
+
+// ---- Hasta monitörü: canlı vital simülasyonu ----
+function baselineVitals() {
+  monitor.stress = 0;
+  monitor.currentRiskScore = 0;
+  monitor.targetHeartRate = 76;
+  monitor.targetPulseRate = 74;
+  monitor.targetRespRate = 14;
+}
+
+function applyDeviationToMonitor(assess, severity) {
+  const risk = assess?.riskScore ?? 0;
+  monitor.currentRiskScore = risk;
+  const bump = { LOW: 6, MEDIUM: 12, HIGH: 22, CRITICAL: 34 }[severity] || 12;
+  monitor.stress = clamp(Math.max(monitor.stress, risk) + bump, 0, 100);
+  monitor.targetHeartRate = clamp(76 + monitor.stress * 0.9, 70, 175);
+  // Aşırı stres altında nabız açığı (pulse deficit) belirir.
+  monitor.targetPulseRate = clamp(monitor.targetHeartRate - 2 - (monitor.stress > 60 ? 6 : 0), 58, 172);
+  monitor.targetRespRate = clamp(14 + monitor.stress * 0.22, 12, 40);
+  setMonitorLevel(assess?.level, severity);
+}
+
+function relaxMonitor() {
+  monitor.stress = clamp(monitor.stress - 22, 0, 100);
+  monitor.currentRiskScore = clamp(monitor.currentRiskScore - 25, 0, 100);
+  monitor.targetHeartRate = clamp(76 + monitor.stress * 0.9, 70, 175);
+  monitor.targetPulseRate = clamp(monitor.targetHeartRate - 2, 58, 172);
+  monitor.targetRespRate = clamp(14 + monitor.stress * 0.22, 12, 40);
+  setMonitorLevel(monitor.stress > 55 ? "HIGH" : monitor.stress > 20 ? "ELEVATED" : "STABLE");
+}
+
+function setMonitorLevel(level, severity) {
+  const cls = level === "CRITICAL" || severity === "CRITICAL" ? "critical"
+    : level === "HIGH" ? "high"
+    : level === "ELEVATED" || level === "MEDIUM" ? "elevated"
+    : "stable";
+  const mm = $("miniMonitor");
+  if (mm) mm.className = `mini-monitor ${cls}`;
+}
+
+// PQRST benzeri tek atım dalga biçimi (faz 0..1).
+function ecgSample(phase) {
+  const t = phase - Math.floor(phase);
+  const g = (c, w, a) => a * Math.exp(-Math.pow((t - c) / w, 2));
+  return g(0.16, 0.03, 0.10) + g(0.26, 0.012, -0.15) + g(0.30, 0.012, 1.0) + g(0.34, 0.014, -0.25) + g(0.58, 0.05, 0.22);
+}
+
+function startMonitor() {
+  if (monitor.timerId || !els.vitalWave) return;
+  const canvas = els.vitalWave;
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const wave = new Array(W).fill(H / 2);
+  const sps = 240; // sabit tarama hızı (px/sn)
+  monitor.lastTick = performance.now();
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - monitor.lastTick) / 1000);
+    monitor.lastTick = now;
+    const ease = Math.min(1, dt * 2.5);
+    monitor.heartRate += (monitor.targetHeartRate - monitor.heartRate) * ease;
+    monitor.pulseRate += (monitor.targetPulseRate - monitor.pulseRate) * ease;
+    monitor.respRate += (monitor.targetRespRate - monitor.respRate) * ease;
+    monitor.stress = clamp(monitor.stress - dt * 3, 0, 100);
+    monitor.currentRiskScore = clamp(monitor.currentRiskScore - dt * 4, 0, 100);
+
+    const steps = Math.max(1, Math.round(dt * sps));
+    for (let i = 0; i < steps; i++) {
+      monitor.wavePhase += (1 / sps) * (monitor.heartRate / 60);
+      wave.push(H / 2 - ecgSample(monitor.wavePhase) * (H * 0.42));
+      wave.shift();
+    }
+    drawEcg(ctx, W, H, wave);
+    updateMonitorUi();
+    monitor.timerId = requestAnimationFrame(frame);
+  }
+  monitor.timerId = requestAnimationFrame(frame);
+}
+
+function drawEcg(ctx, W, H, wave) {
+  ctx.clearRect(0, 0, W, H);
+  ctx.strokeStyle = "rgba(45,212,191,0.10)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 14) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 14) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  const color = monitor.stress > 70 ? "#fb7185" : monitor.stress > 35 ? "#fcd34d" : "#34d399";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.6;
+  ctx.lineJoin = "round";
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  const stepX = W / wave.length;
+  for (let i = 0; i < wave.length; i++) {
+    const x = i * stepX;
+    i ? ctx.lineTo(x, wave[i]) : ctx.moveTo(x, wave[i]);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function updateMonitorUi() {
+  if (els.hrValue) els.hrValue.textContent = Math.round(monitor.heartRate);
+  if (els.respValue) els.respValue.textContent = Math.round(monitor.respRate);
+  if (els.riskValue) els.riskValue.textContent = `${Math.round(monitor.currentRiskScore)}%`;
+  if (els.pulseValue) els.pulseValue.textContent = Math.round(monitor.pulseRate);
+}
+
+// ---- Nefes sesi (WebAudio: bantlı gürültü, solunuma senkron) ----
+function ensureAudio() {
+  if (monitor.audioCtx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  const ctx = new AC();
+  const size = 2 * ctx.sampleRate;
+  const buf = ctx.createBuffer(1, size, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf; noise.loop = true;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass"; filter.frequency.value = 500; filter.Q.value = 0.7;
+  const gain = ctx.createGain(); gain.gain.value = 0.0001;
+  noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+  noise.start();
+  monitor.audioCtx = ctx;
+  monitor.noiseGain = gain;
+  monitor.noiseFilter = filter;
+  monitor.audioReady = true;
+  scheduleBreath();
+}
+
+function scheduleBreath() {
+  if (!monitor.audioReady) return;
+  const ctx = monitor.audioCtx;
+  const g = monitor.noiseGain.gain;
+  const period = 60 / clamp(monitor.respRate, 10, 40);
+  const t = ctx.currentTime;
+  const peak = monitor.audioEnabled ? clamp(0.04 + (monitor.stress / 100) * 0.22, 0.04, 0.3) : 0.0001;
+  g.cancelScheduledValues(t);
+  g.setValueAtTime(Math.max(0.0001, g.value), t);
+  g.linearRampToValueAtTime(peak, t + period * 0.4);        // nefes al
+  g.linearRampToValueAtTime(0.0001, t + period * 0.9);      // nefes ver
+  monitor.noiseFilter.frequency.setValueAtTime(420, t);
+  monitor.noiseFilter.frequency.linearRampToValueAtTime(560, t + period * 0.4);
+  clearTimeout(monitor.breathTimer);
+  monitor.breathTimer = setTimeout(scheduleBreath, period * 1000);
+}
+
+function toggleAudio() {
+  monitor.audioEnabled = !monitor.audioEnabled;
+  els.audioToggle.classList.toggle("off", !monitor.audioEnabled);
+  els.audioToggle.textContent = monitor.audioEnabled ? "🔊" : "🔇";
+  if (monitor.audioEnabled) {
+    ensureAudio();
+    if (monitor.audioCtx?.state === "suspended") monitor.audioCtx.resume();
+  }
 }
 
 function updateCounters() {
@@ -605,7 +821,7 @@ function bindEvents() {
   els.countSendBtn.addEventListener("click", sendCount);
   els.clearLogBtn.addEventListener("click", () => (els.log.innerHTML = ""));
   els.trafficClear.addEventListener("click", () => { els.traffic.innerHTML = ""; trafficCount = 0; els.trafficCount.textContent = "0 istek"; });
-  els.focusMode.addEventListener("change", () => updateSceneMode(state.currentStep));
+  els.audioToggle.addEventListener("click", toggleAudio);
   els.trafficToggle.addEventListener("click", () => {
     const expanded = !els.traffic.classList.contains("expanded");
     els.traffic.classList.toggle("expanded", expanded);
@@ -634,3 +850,6 @@ buildStepList();
 bindZones();
 bindEvents();
 setConn(false);
+resetComplications();
+baselineVitals();
+startMonitor();

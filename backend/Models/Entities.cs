@@ -25,6 +25,7 @@ public sealed class SessionRecord
     public int WrongActions { get; set; }
     public int SterileViolations { get; set; }
     public int HintsUsed { get; set; }
+    public int ConsecutiveErrors { get; set; }
     public DateTime StartedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
 }

@@ -59,6 +59,27 @@ public sealed class ValidationResponse
     public StepView? NextStep { get; set; }
     // Deterministik komplikasyon açıklaması (klinik tablodan); SignalR'a bağlı kalmadan anında döner.
     public AiFeedbackDto? Complication { get; set; }
+    // Ardışık/tekrar eden hatalardan üretilen kümülatif komplikasyon değerlendirmesi.
+    public CumulativeComplicationDto? CumulativeComplication { get; set; }
+}
+
+public sealed class ComplicationItemDto
+{
+    public string DeviationType { get; set; } = "";
+    public string Risk { get; set; } = "";
+    public int Occurrences { get; set; }
+    public int Probability { get; set; }
+    public string Severity { get; set; } = "MEDIUM";
+    public bool Primary { get; set; }
+}
+
+public sealed class CumulativeComplicationDto
+{
+    public int Streak { get; set; }
+    public string Level { get; set; } = "MEDIUM";
+    public int RiskScore { get; set; }
+    public string Summary { get; set; } = "";
+    public List<ComplicationItemDto> Items { get; set; } = new();
 }
 
 public sealed class ReportResponse

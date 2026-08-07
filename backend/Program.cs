@@ -45,6 +45,7 @@ builder.Services.AddDbContext<OperionDbContext>(opt =>
 });
 
 builder.Services.AddSingleton<ProcedureStore>();
+builder.Services.AddSingleton<ComplicationEngine>();
 builder.Services.AddScoped<ScoringService>();
 builder.Services.AddScoped<ProcedureService>();
 builder.Services.AddScoped<IAiFeedbackService, AiFeedbackService>();
