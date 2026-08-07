@@ -67,6 +67,7 @@ const state = {
   holding: null,
   counters: { correct: 0, wrong: 0, sterile: 0, hint: 0 },
 };
+let trafficCount = 0;
 
 // ---- DOM kısayolları ----
 const $ = (id) => document.getElementById(id);
@@ -85,6 +86,7 @@ const els = {
   trayWrap: $("trayWrap"), instrumentGrid: $("instrumentGrid"),
   stepList: $("stepList"),
   log: $("log"), logToggle: $("logToggle"), clearLogBtn: $("clearLogBtn"),
+  traffic: $("traffic"), trafficCount: $("trafficCount"), trafficClear: $("trafficClear"),
   reportModal: $("reportModal"), reportBody: $("reportBody"), closeReportBtn: $("closeReportBtn"),
   helpModal: $("helpModal"), closeHelpBtn: $("closeHelpBtn"),
 };
@@ -99,6 +101,47 @@ function toast(kind, msg) {
   els.toast.className = `toast toast-${kind}`;
   clearTimeout(toast._t);
   toast._t = setTimeout(() => els.toast.classList.add("hidden"), 2600);
+}
+
+// Alt konsol: her isteği KAYNAĞINI vurgulayarak listeler.
+function traffic(kind, source, srcClass, dir, label, detail) {
+  const row = document.createElement("div");
+  row.className = `tr-row tr-${kind}`;
+  const cell = (cls, txt) => { const s = document.createElement("span"); s.className = cls; s.textContent = txt; return s; };
+  row.append(
+    cell("tr-time", timeLabel()),
+    cell(`src ${srcClass}`, source),
+    cell("tr-dir", dir),
+    cell("tr-label", label),
+    cell("tr-detail", detail || "")
+  );
+  els.traffic.appendChild(row);
+  els.traffic.scrollTop = els.traffic.scrollHeight;
+  trafficCount++;
+  els.trafficCount.textContent = `${trafficCount} istek`;
+}
+
+function briefReq(body) {
+  if (!body) return "";
+  if (body.eventType) {
+    let s = body.eventType;
+    if (body.instrumentCode) s += ` · ${body.instrumentCode}`;
+    if (body.target) s += ` → ${body.target}`;
+    if (body.sutureCode) s += ` · ${body.sutureCode}`;
+    if (body.counts) s += ` · ${JSON.stringify(body.counts)}`;
+    return s;
+  }
+  if (body.scenarioId) return `scenario=${body.scenarioId}`;
+  return "";
+}
+
+function briefRes(data) {
+  if (!data) return "";
+  if (data.deviation) return `SAPMA ${data.deviation.deviationType} · skor=${data.score}`;
+  if (data.completed) return `TAMAMLANDI · skor=${data.score}`;
+  if (typeof data.score === "number" && data.currentStep) return `seans · adım ${data.currentStep.stepId} · skor=${data.score}`;
+  if (typeof data.score === "number") return `OK · skor=${data.score}`;
+  return "OK";
 }
 
 function log(kind, tag, content) {
@@ -119,6 +162,7 @@ function log(kind, tag, content) {
 
 // ---- Backend çağrıları ----
 async function postJson(path, body) {
+  traffic("req", "VR·SİM", "src-sim", "→", `POST ${path}`, briefReq(body));
   const res = await fetch(`${baseUrl()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -127,6 +171,8 @@ async function postJson(path, body) {
   const text = await res.text();
   let data;
   try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+  if (res.ok) traffic("res", "BACKEND", "src-backend", "←", `${res.status} ${path}`, briefRes(data));
+  else traffic("err", "HATA", "src-err", "←", `${res.status} ${path}`, JSON.stringify(data));
   if (!res.ok) { const e = new Error(`HTTP ${res.status}`); e.data = data; throw e; }
   return data;
 }
@@ -200,7 +246,11 @@ function handleResponse(sentType, data) {
     log("error", `⚠ Sapma: ${d.deviationType}`,
       `Beklenen: ${d.expected ?? "-"}\nGerçekleşen: ${d.actual ?? "-"}\nŞiddet: ${d.severity ?? "-"}\n${data.message ?? ""}`);
     // Komplikasyon REST yanıtıyla anında gelir (SignalR'a bağlı değil).
-    if (data.complication) showAiFeedback(data.complication);
+    if (data.complication) {
+      traffic("ai", "AI·TABLO", "src-aitable", "⚑", "Komplikasyon (deterministik)",
+        `${data.complication.deviationType} · ${data.complication.possibleRisk || ""}`);
+      showAiFeedback(data.complication);
+    }
   } else if (sentType === "hint_requested") {
     if (!replay) state.counters.hint++;
     setVerdict("info", "İPUCU");
@@ -229,8 +279,16 @@ async function connectHub() {
   try {
     const conn = new signalR.HubConnectionBuilder()
       .withUrl(`${baseUrl()}/hubs/simulation`).withAutomaticReconnect().build();
-    conn.on("AiFeedback", showAiFeedback);
-    conn.on("ScoreUpdate", (u) => { if (u && typeof u.score === "number") setScore(u.score); });
+    conn.on("AiFeedback", (fb) => {
+      traffic("ai", "AI·LLM", "src-aillm", "↺", "SignalR AiFeedback", `${fb.deviationType} · ${fb.possibleRisk || ""}`);
+      showAiFeedback(fb);
+    });
+    conn.on("ScoreUpdate", (u) => {
+      if (u && typeof u.score === "number") {
+        setScore(u.score);
+        traffic("hub", "HUB", "src-hub", "↺", "SignalR ScoreUpdate", `skor=${u.score}`);
+      }
+    });
     conn.onreconnected(() => setConn(true));
     conn.onclose(() => setConn(false));
     await conn.start();
@@ -506,6 +564,7 @@ function bindEvents() {
   els.releaseBtn.addEventListener("click", release);
   els.countSendBtn.addEventListener("click", sendCount);
   els.clearLogBtn.addEventListener("click", () => (els.log.innerHTML = ""));
+  els.trafficClear.addEventListener("click", () => { els.traffic.innerHTML = ""; trafficCount = 0; els.trafficCount.textContent = "0 istek"; });
   els.logToggle.addEventListener("click", () => {
     els.log.classList.toggle("hidden");
     els.logToggle.textContent = els.log.classList.contains("hidden")

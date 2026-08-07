@@ -169,6 +169,23 @@
     </div>
   </main>
 
+  <!-- Alt: İstek Takibi (kaynak vurgulu) -->
+  <section id="trafficBar" class="traffic-bar">
+    <div class="traffic-head">
+      <span class="traffic-title">📡 İstek Takibi</span>
+      <span class="traffic-legend">
+        <span class="src src-sim">VR·SİM</span>
+        <span class="src src-backend">BACKEND</span>
+        <span class="src src-aitable">AI·TABLO</span>
+        <span class="src src-aillm">AI·LLM</span>
+        <span class="src src-hub">HUB</span>
+      </span>
+      <span id="trafficCount" class="traffic-count">0 istek</span>
+      <button id="trafficClear" class="btn btn-mini">Temizle</button>
+    </div>
+    <div id="traffic" class="traffic-list"></div>
+  </section>
+
   <!-- Rapor Modalı -->
   <div id="reportModal" class="modal hidden">
     <div class="modal-card">
