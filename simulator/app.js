@@ -607,6 +607,9 @@ function bindEvents() {
 }
 
 // ---- Başlangıç ----
+if (location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+  els.baseUrl.value = location.origin;
+}
 buildTray();
 buildSutures();
 buildStepList();

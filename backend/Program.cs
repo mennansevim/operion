@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Operion.Api.Data;
 using Operion.Api.Hubs;
 using Operion.Api.Services;
@@ -63,6 +64,22 @@ app.UseHttpLogging();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors();
+
+var simulatorPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "simulator"));
+if (Directory.Exists(simulatorPath))
+{
+    var fp = new PhysicalFileProvider(simulatorPath);
+    app.UseDefaultFiles(new DefaultFilesOptions
+    {
+        FileProvider = fp,
+        RequestPath = "/sim"
+    });
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = fp,
+        RequestPath = "/sim"
+    });
+}
 
 app.MapControllers();
 app.MapHub<SimulationHub>("/hubs/simulation");
