@@ -83,6 +83,10 @@ public sealed class AiFeedbackDto
     public string RecommendedAction { get; set; } = "";
     public string Severity { get; set; } = "MEDIUM";
     public string Source { get; set; } = "table";
+    public string? ModelName { get; set; }
+    public int? PromptTokens { get; set; }
+    public int? CompletionTokens { get; set; }
+    public int? TotalTokens { get; set; }
 }
 
 public sealed class ScoreUpdateDto

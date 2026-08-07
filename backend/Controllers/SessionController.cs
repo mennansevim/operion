@@ -218,7 +218,8 @@ public sealed class SessionController : ControllerBase
             .Select(f => new
             {
                 f.StepId, f.DeviationType, f.PossibleRisk, f.Explanation,
-                f.RecommendedAction, f.Severity, f.Source, f.ModelName, f.CreatedAt
+                f.RecommendedAction, f.Severity, f.Source, f.ModelName,
+                f.PromptTokens, f.CompletionTokens, f.TotalTokens, f.CreatedAt
             })
             .ToListAsync();
         return Ok(feedbacks);
@@ -279,6 +280,9 @@ public sealed class SessionController : ControllerBase
                     Severity = result.Severity,
                     Source = result.Source,
                     ModelName = result.ModelName,
+                    PromptTokens = result.PromptTokens,
+                    CompletionTokens = result.CompletionTokens,
+                    TotalTokens = result.TotalTokens,
                     RequestJson = result.RequestJson,
                     ResponseJson = result.ResponseJson
                 });
@@ -297,7 +301,11 @@ public sealed class SessionController : ControllerBase
                     Explanation = result.Explanation,
                     RecommendedAction = result.RecommendedAction,
                     Severity = result.Severity,
-                    Source = result.Source
+                    Source = result.Source,
+                    ModelName = result.ModelName,
+                    PromptTokens = result.PromptTokens,
+                    CompletionTokens = result.CompletionTokens,
+                    TotalTokens = result.TotalTokens
                 });
             }
             catch (Exception ex)

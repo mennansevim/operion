@@ -14,6 +14,9 @@ public sealed class AiFeedbackResult
     public string Severity { get; set; } = "MEDIUM";
     public string Source { get; set; } = "table";
     public string? ModelName { get; set; }
+    public int? PromptTokens { get; set; }
+    public int? CompletionTokens { get; set; }
+    public int? TotalTokens { get; set; }
     public string? RequestJson { get; set; }
     public string? ResponseJson { get; set; }
 }
@@ -115,6 +118,13 @@ public sealed class AiFeedbackService : IAiFeedbackService
         using var doc = JsonDocument.Parse(raw);
         var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
         if (string.IsNullOrWhiteSpace(content)) return;
+
+        if (doc.RootElement.TryGetProperty("usage", out var usage))
+        {
+            if (usage.TryGetProperty("prompt_tokens", out var pt)) result.PromptTokens = pt.GetInt32();
+            if (usage.TryGetProperty("completion_tokens", out var comp)) result.CompletionTokens = comp.GetInt32();
+            if (usage.TryGetProperty("total_tokens", out var tt)) result.TotalTokens = tt.GetInt32();
+        }
 
         using var parsed = JsonDocument.Parse(content);
         var root = parsed.RootElement;

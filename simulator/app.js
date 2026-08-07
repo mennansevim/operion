@@ -254,11 +254,15 @@ function handleResponse(sentType, data) {
   } else if (sentType === "hint_requested") {
     if (!replay) state.counters.hint++;
     setVerdict("info", "İPUCU");
+    aiState("info", `💡 ${data.message || "İpucu verildi."}`);
     toast("info", data.message || "İpucu verildi.");
     log("info", "💡 İpucu", data.message || "");
   } else {
     if (!replay) state.counters.correct++;
-    setVerdict("good", "DOĞRU İŞLEM ✓");
+    const next = data.nextStep ? ` — sıradaki: Adım ${data.nextStep.stepId} · ${data.nextStep.title}` : "";
+    setVerdict("good", data.completed ? "🏁 Tamamlandı" : `DOĞRU ✓ — Adım ${(data.nextStep?.stepId ?? data.currentStepId)}/${TOTAL_STEPS}`);
+    // Doğru ilerleyince son uyarı temizlenir, panel olumlu duruma döner.
+    aiState("ok", data.completed ? "🏁 Prosedür doğru tamamlandı." : `✓ Süreç doğru ilerliyor${next}`);
     toast("good", data.message || "Doğru aksiyon.");
     log("success", "✓ Doğru Aksiyon", data.message || "");
   }
@@ -268,6 +272,7 @@ function handleResponse(sentType, data) {
     setStep(null);
     markAllStepsDone();
     setVerdict("good", "🏁 Prosedür tamamlandı — 'Bitir & Rapor'");
+    aiState("ok", "🏁 Prosedür doğru tamamlandı.");
     toast("good", "Prosedür tamamlandı! Raporu görün.");
   } else if (data.nextStep) {
     setStep(data.nextStep);
@@ -280,7 +285,7 @@ async function connectHub() {
     const conn = new signalR.HubConnectionBuilder()
       .withUrl(`${baseUrl()}/hubs/simulation`).withAutomaticReconnect().build();
     conn.on("AiFeedback", (fb) => {
-      traffic("ai", "AI·LLM", "src-aillm", "↺", "SignalR AiFeedback", `${fb.deviationType} · ${fb.possibleRisk || ""}`);
+      traffic("ai", "AI·LLM", "src-aillm", "↺", "SignalR AiFeedback", `${fb.deviationType}${fb.totalTokens ? ` · ${fb.totalTokens} token` : ""} · ${fb.possibleRisk || ""}`);
       showAiFeedback(fb);
     });
     conn.on("ScoreUpdate", (u) => {
@@ -308,16 +313,31 @@ async function disconnectHub() {
 
 function showAiFeedback(fb) {
   const sev = fb.severity || "MEDIUM";
+  const isLlm = fb.source === "llm";
   const line = (k, v) => v ? `<div class="ai-line"><span class="k">${k}</span><span>${v}</span></div>` : "";
+  const meta = isLlm
+    ? `<span class="ai-call">🤖 AI çağrısı yapıldı</span>` +
+      (fb.totalTokens ? `<span class="ai-tokens">${fb.modelName ? fb.modelName + " · " : ""}${fb.totalTokens} token</span>` : "")
+    : `<span class="ai-src">Kaynak: klinik tablo</span>`;
   els.aiCard.classList.remove("empty");
   els.aiCard.innerHTML =
     `<div class="ai-head"><span class="sev sev-${sev}">${sev}</span>` +
-    `<span class="ai-dev">${fb.deviationType ?? ""}</span>` +
-    `<span class="ai-src">Kaynak: ${fb.source ?? "table"}</span></div>` +
+    `<span class="ai-dev">${fb.deviationType ?? ""}</span>` + meta + `</div>` +
     line("Olası Risk", fb.possibleRisk) +
     line("Açıklama", fb.explanation) +
     line("Önerilen Müdahale", fb.recommendedAction);
   log("ai", "🧠 AI Geri Bildirim", `${fb.deviationType}\nRisk: ${fb.possibleRisk}\nAçıklama: ${fb.explanation}\nMüdahale: ${fb.recommendedAction}`);
+}
+
+// Panel olumlu/nötr duruma döner (doğru ilerleme veya ipucu) — son uyarı kalıcı olmaz.
+function aiState(kind, text) {
+  els.aiCard.classList.remove("empty");
+  els.aiCard.innerHTML = `<div class="ai-state ai-${kind}">${text}</div>`;
+}
+
+function aiIdle() {
+  els.aiCard.classList.add("empty");
+  els.aiCard.innerHTML = `<p class="muted">Bir hata yaptığınızda, olası klinik komplikasyon ve doğru müdahale açıklaması burada belirir.</p>`;
 }
 
 // ---- Sahne: elde tutma / teslim ----
