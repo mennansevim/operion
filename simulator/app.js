@@ -80,13 +80,14 @@ const els = {
   cntCorrect: $("cntCorrect"), cntWrong: $("cntWrong"), cntSterile: $("cntSterile"), cntHint: $("cntHint"),
   aiCard: $("aiCard"),
   handHolding: $("handHolding"), sutureWrap: $("sutureWrap"), sutureSelect: $("sutureSelect"),
+  focusMode: $("focusMode"),
   autoBtn: $("autoBtn"), releaseBtn: $("releaseBtn"),
   countMode: $("countMode"), countSendBtn: $("countSendBtn"),
   cntCompress: $("cntCompress"), cntInstrument: $("cntInstrument"), cntNeedle: $("cntNeedle"),
   trayWrap: $("trayWrap"), instrumentGrid: $("instrumentGrid"),
   stepList: $("stepList"),
   log: $("log"), logToggle: $("logToggle"), clearLogBtn: $("clearLogBtn"),
-  traffic: $("traffic"), trafficCount: $("trafficCount"), trafficClear: $("trafficClear"),
+  traffic: $("traffic"), trafficCount: $("trafficCount"), trafficClear: $("trafficClear"), trafficToggle: $("trafficToggle"),
   reportModal: $("reportModal"), reportBody: $("reportBody"), closeReportBtn: $("closeReportBtn"),
   helpModal: $("helpModal"), closeHelpBtn: $("closeHelpBtn"),
 };
@@ -449,6 +450,15 @@ function labelOf(code) {
   return INSTRUMENT_CATALOG.find((i) => i.code === code)?.name ?? code;
 }
 
+function applyFocusMode(allowedSet) {
+  const focusOn = !!els.focusMode?.checked;
+  const hasAllowed = allowedSet && allowedSet.size > 0;
+  els.instrumentGrid.querySelectorAll(".tray-card").forEach((c) => {
+    const visible = !focusOn || !hasAllowed || allowedSet.has(c.dataset.code);
+    c.classList.toggle("focus-hide", !visible);
+  });
+}
+
 function updateSceneMode(step) {
   const meta = step ? stepMeta(step.stepId) : null;
   const isCount = meta?.event === "count_confirmed";
@@ -470,6 +480,7 @@ function updateSceneMode(step) {
   const allowed = new Set(step ? (step.allowedInstruments?.length ? step.allowedInstruments : meta?.allowed || []) : []);
   els.instrumentGrid.querySelectorAll(".tray-card").forEach((c) =>
     c.classList.toggle("expected", allowed.has(c.dataset.code)));
+  applyFocusMode(allowed);
 
   // Beklenen bölge vurgusu.
   const zone = meta?.target || "SURGEON";
@@ -594,6 +605,13 @@ function bindEvents() {
   els.countSendBtn.addEventListener("click", sendCount);
   els.clearLogBtn.addEventListener("click", () => (els.log.innerHTML = ""));
   els.trafficClear.addEventListener("click", () => { els.traffic.innerHTML = ""; trafficCount = 0; els.trafficCount.textContent = "0 istek"; });
+  els.focusMode.addEventListener("change", () => updateSceneMode(state.currentStep));
+  els.trafficToggle.addEventListener("click", () => {
+    const expanded = !els.traffic.classList.contains("expanded");
+    els.traffic.classList.toggle("expanded", expanded);
+    els.traffic.classList.toggle("compact", !expanded);
+    els.trafficToggle.textContent = expanded ? "Daralt" : "Genişlet";
+  });
   els.logToggle.addEventListener("click", () => {
     els.log.classList.toggle("hidden");
     els.logToggle.textContent = els.log.classList.contains("hidden")

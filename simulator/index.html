@@ -123,6 +123,10 @@
           </label>
           <button id="autoBtn" class="btn btn-mini btn-success" title="Bu adımın doğru aletini otomatik teslim et">⚡ Doğru aleti gönder</button>
           <button id="releaseBtn" class="btn btn-mini btn-ghost" disabled>Bırak</button>
+          <label class="focus-toggle" title="Alet tepsisinde yalnızca bu adım için ilgili aletleri göster">
+            <input id="focusMode" type="checkbox" checked />
+            <span>Sadece ilgili aletler</span>
+          </label>
         </div>
 
         <!-- Sayım modu (yalnızca sayım adımında) -->
@@ -181,9 +185,10 @@
         <span class="src src-hub">HUB</span>
       </span>
       <span id="trafficCount" class="traffic-count">0 istek</span>
+      <button id="trafficToggle" class="btn btn-mini">Genişlet</button>
       <button id="trafficClear" class="btn btn-mini">Temizle</button>
     </div>
-    <div id="traffic" class="traffic-list"></div>
+    <div id="traffic" class="traffic-list compact"></div>
   </section>
 
   <!-- Rapor Modalı -->
