@@ -12,7 +12,8 @@ public sealed class ScoringService
     public void Apply(SessionRecord session, int change)
     {
         var bounds = _store.Procedure.ScoreBounds;
-        session.RawScore += change;
-        session.Score = Math.Clamp(session.RawScore, bounds.Min, bounds.Max);
+        // RawScore da sınırlar içinde tutulur; aksi halde çok negatif birikince skor 0'da kilitlenir ve toparlanamaz.
+        session.RawScore = Math.Clamp(session.RawScore + change, bounds.Min, bounds.Max);
+        session.Score = session.RawScore;
     }
 }

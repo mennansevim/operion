@@ -46,7 +46,7 @@
           <span class="mv-item"><b id="respValue">14</b><i>slk</i></span>
           <span class="mv-item"><b id="riskValue">0%</b><i>risk</i></span>
         </div>
-        <button id="audioToggle" class="mv-audio" title="Nefes sesini aç/kapat">🔊</button>
+        <button id="audioToggle" class="mv-audio" title="Nabız sesini aç/kapat">🔊</button>
         <span id="pulseValue" class="hidden">74</span>
         <span id="monitorState" class="hidden">Stabil</span>
       </div>
@@ -207,9 +207,14 @@
 
   <!-- Rapor Modalı -->
   <div id="reportModal" class="modal hidden">
-    <div class="modal-card">
-      <h2>🏁 Seans Raporu</h2>
+    <div class="modal-card modal-report">
+      <h2>🏁 Seans Raporu <span id="reportUser" class="report-user"></span></h2>
       <div id="reportBody" class="report-body"></div>
+      <h3 class="report-h3">📈 Vital Seyri — Nabız / Solunum / Risk</h3>
+      <canvas id="reportChart" class="report-chart" width="620" height="180"></canvas>
+      <div id="reportChartLegend" class="chart-legend"></div>
+      <h3 class="report-h3">🧭 Akış Özeti</h3>
+      <div id="reportFlow" class="report-flow"></div>
       <button id="closeReportBtn" class="btn btn-primary">Kapat</button>
     </div>
   </div>

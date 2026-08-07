@@ -66,6 +66,7 @@ const state = {
   connection: null,
   holding: null,
   counters: { correct: 0, wrong: 0, sterile: 0, hint: 0 },
+  timeline: [],
 };
 let trafficCount = 0;
 
@@ -112,6 +113,7 @@ const els = {
   log: $("log"), logToggle: $("logToggle"), clearLogBtn: $("clearLogBtn"),
   traffic: $("traffic"), trafficCount: $("trafficCount"), trafficClear: $("trafficClear"), trafficToggle: $("trafficToggle"),
   reportModal: $("reportModal"), reportBody: $("reportBody"), closeReportBtn: $("closeReportBtn"),
+  reportUser: $("reportUser"), reportChart: $("reportChart"), reportChartLegend: $("reportChartLegend"), reportFlow: $("reportFlow"),
   helpModal: $("helpModal"), closeHelpBtn: $("closeHelpBtn"),
 };
 
@@ -212,6 +214,15 @@ async function postJson(path, body) {
   return data;
 }
 
+async function getJson(path) {
+  traffic("req", "VR·SİM", "src-sim", "→", `GET ${path}`, "");
+  const res = await fetch(`${baseUrl()}${path}`);
+  const data = await res.json();
+  traffic("res", "BACKEND", "src-backend", "←", `${res.status} ${path}`,
+    Array.isArray(data) ? `${data.length} kayıt` : "");
+  return data;
+}
+
 // ---- Seans yaşam döngüsü ----
 async function startSession() {
   const body = { userId: els.userId.value.trim() || "u1", scenarioId: els.scenario.value };
@@ -227,7 +238,7 @@ async function startSession() {
     setVerdict("idle", `Seans başladı — ${data.scenarioName}`);
     toast("info", "Seans başladı. İlk görevinizi yapın.");
     log("success", "← Seans Başladı", data);
-    if (monitor.audioEnabled) { ensureAudio(); startBreathing(); }
+    if (monitor.audioEnabled) { ensureAudio(); startHeartbeat(); }
     await connectHub();
   } catch (e) {
     log("error", "✕ Başlatma Hatası", formatError(e));
@@ -237,14 +248,17 @@ async function startSession() {
 
 async function endSession() {
   if (!state.sessionId) return;
+  const sid = state.sessionId;
   try {
-    const report = await postJson(`/api/sessions/${state.sessionId}/complete`, {});
+    const report = await postJson(`/api/sessions/${sid}/complete`, {});
     log("success", "← Rapor", report);
-    showReport(report);
+    let events = [];
+    try { events = await getJson(`/api/sessions/${sid}/events`); } catch {}
+    showReport(report, events);
   } catch (e) {
     log("error", "✕ Bitirme Hatası", formatError(e));
   } finally {
-    stopBreathing();
+    stopHeartbeat();
     await disconnectHub();
     state.sessionId = null;
     state.currentStep = null;
@@ -310,6 +324,8 @@ function handleResponse(sentType, data) {
     relaxMonitor();
   }
   updateCounters();
+
+  if (!replay) recordTimeline(sentType, data);
 
   if (data.completed) {
     setStep(null);
@@ -526,6 +542,7 @@ function setVerdict(kind, text) {
 
 function resetCounters() {
   state.counters = { correct: 0, wrong: 0, sterile: 0, hint: 0 };
+  state.timeline = [];
   updateCounters();
   els.aiCard.classList.add("empty");
   els.aiCard.innerHTML = `<p class="muted">Bir hata yaptığınızda, olası klinik komplikasyon ve doğru müdahale açıklaması burada belirir.</p>`;
@@ -666,89 +683,65 @@ function updateMonitorUi() {
   if (els.pulseValue) els.pulseValue.textContent = Math.round(monitor.pulseRate);
 }
 
-// ---- Nefes sesi (WebAudio: bantlı gürültü, solunuma senkron) ----
+// ---- Nabız sesi (WebAudio: HR'ye senkron "lub-dub" kalp atışı) ----
 function ensureAudio() {
   if (monitor.audioCtx) return;
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   const ctx = new AC();
-  const size = 2 * ctx.sampleRate;
-  const buf = ctx.createBuffer(1, size, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
-  const noise = ctx.createBufferSource();
-  noise.buffer = buf; noise.loop = true;
-  const filter = ctx.createBiquadFilter();
-  filter.type = "bandpass"; filter.frequency.value = 800; filter.Q.value = 1.0;
-  const gain = ctx.createGain(); gain.gain.value = 0.0001;
-  noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
-  noise.start();
+  const master = ctx.createGain();
+  master.gain.value = 0.9;
+  master.connect(ctx.destination);
   monitor.audioCtx = ctx;
-  monitor.noiseGain = gain;
-  monitor.noiseFilter = filter;
+  monitor.masterGain = master;
   monitor.audioReady = true;
 }
 
-function startBreathing() {
+// Tek perküsif kalp vuruşu: alçak sinüs + hızlı sönüm (frekans düşüşü "thump" hissi verir).
+function thump(t0, freq, peak, dur) {
+  const ctx = monitor.audioCtx;
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(freq, t0);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.55, t0 + dur);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g); g.connect(monitor.masterGain);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.03);
+}
+
+function scheduleHeartbeat() {
+  if (!monitor.audioReady || !monitor.audioEnabled) return;
+  const ctx = monitor.audioCtx;
+  const t = ctx.currentTime + 0.02;
+  const bpm = clamp(monitor.heartRate, 40, 200);
+  const period = 60 / bpm;
+  const amp = clamp(0.24 + (monitor.stress / 100) * 0.34, 0.24, 0.6);
+  thump(t, 54, amp, 0.16);                                   // S1 "lub"
+  thump(t + Math.min(0.16, period * 0.30), 44, amp * 0.7, 0.13); // S2 "dub"
+  clearTimeout(monitor.beatTimer);
+  monitor.beatTimer = setTimeout(scheduleHeartbeat, period * 1000);
+}
+
+function startHeartbeat() {
   if (!monitor.audioReady || !monitor.audioEnabled) return;
   if (monitor.audioCtx?.state === "suspended") monitor.audioCtx.resume();
-  scheduleBreath();
+  scheduleHeartbeat();
 }
 
-function stopBreathing() {
-  clearTimeout(monitor.breathTimer);
-  if (!monitor.noiseGain || !monitor.audioCtx) return;
-  const g = monitor.noiseGain.gain;
-  const t = monitor.audioCtx.currentTime;
-  g.cancelScheduledValues(t);
-  g.setValueAtTime(Math.max(0.0001, g.value), t);
-  g.linearRampToValueAtTime(0.0001, t + 0.2);
-}
-
-function scheduleBreath() {
-  if (!monitor.audioReady) return;
-  const ctx = monitor.audioCtx;
-  const g = monitor.noiseGain.gain;
-  const f = monitor.noiseFilter.frequency;
-  // Hafif düzensizlik doğal his verir.
-  const cycle = (60 / clamp(monitor.respRate, 8, 40)) * (0.94 + Math.random() * 0.12);
-  const t = ctx.currentTime;
-  const amp = monitor.audioEnabled ? clamp(0.05 + (monitor.stress / 100) * 0.2, 0.05, 0.28) : 0.0001;
-  const inPeak = amp * 0.75;   // iç çekiş daha yumuşak
-  const exPeak = amp;          // veriş daha belirgin
-
-  g.cancelScheduledValues(t);
-  f.cancelScheduledValues(t);
-  g.setValueAtTime(0.0001, t);
-
-  // İç çekiş (inhale): kısa, parlak.
-  const inStart = t + cycle * 0.02;
-  const inTop = t + cycle * 0.15;
-  const inEnd = t + cycle * 0.32;
-  f.setValueAtTime(1050, inStart);
-  g.setValueAtTime(0.0001, inStart);
-  g.linearRampToValueAtTime(inPeak, inTop);
-  g.linearRampToValueAtTime(0.0002, inEnd);
-
-  // Kısa duraklama, sonra veriş (exhale): uzun, boğuk, sönümlü.
-  const exStart = t + cycle * 0.42;
-  const exTop = t + cycle * 0.56;
-  const exEnd = t + cycle * 0.92;
-  f.setValueAtTime(560, exStart);
-  g.setValueAtTime(0.0001, exStart);
-  g.linearRampToValueAtTime(exPeak, exTop);
-  g.exponentialRampToValueAtTime(0.0002, exEnd);
-
-  clearTimeout(monitor.breathTimer);
-  monitor.breathTimer = setTimeout(scheduleBreath, cycle * 1000);
+function stopHeartbeat() {
+  clearTimeout(monitor.beatTimer);
 }
 
 function toggleAudio() {
   monitor.audioEnabled = !monitor.audioEnabled;
   els.audioToggle.classList.toggle("off", !monitor.audioEnabled);
   els.audioToggle.textContent = monitor.audioEnabled ? "🔊" : "🔇";
-  if (monitor.audioEnabled) { ensureAudio(); startBreathing(); }
-  else { stopBreathing(); }
+  if (monitor.audioEnabled) { ensureAudio(); startHeartbeat(); }
+  else { stopHeartbeat(); }
 }
 
 function updateCounters() {
@@ -791,9 +784,10 @@ function markAllStepsDone() {
 }
 
 // ---- Rapor ----
-function showReport(report) {
+function showReport(report, events) {
+  els.reportUser.textContent = `— kullanıcı: ${els.userId.value.trim() || "u1"}`;
   const rows = [
-    ["Skor", report.score],
+    ["Skor", `${report.score}/100`],
     ["Başarı Oranı", report.successRate != null ? `%${report.successRate}` : "-"],
     ["Doğru Aksiyon", report.correctActions],
     ["Yanlış Aksiyon", report.wrongActions],
@@ -802,8 +796,68 @@ function showReport(report) {
   ];
   els.reportBody.innerHTML =
     rows.map(([k, v]) => `<div class="report-row"><span class="k">${k}</span><span class="v">${v ?? "-"}</span></div>`).join("") +
-    (report.summary ? `<div class="report-summary">${report.summary}</div>` : "");
+    (report.summary ? `<div class="report-summary">${escapeHtml(report.summary)}</div>` : "");
+  drawReportChart();
+  renderFlow(events);
   els.reportModal.classList.remove("hidden");
+}
+
+// Vital seyri kaydı (her geçerli olayda hedef nabız/solunum + risk).
+function recordTimeline(type, data) {
+  const label = data.deviation ? `SAPMA ${data.deviation.deviationType}`
+    : type === "hint_requested" ? "İpucu"
+    : data.completed ? "Tamamlandı"
+    : `Adım ${data.currentStepId} ✓`;
+  state.timeline.push({
+    hr: Math.round(monitor.targetHeartRate),
+    resp: Math.round(monitor.targetRespRate),
+    risk: Math.round(monitor.currentRiskScore),
+    ok: !data.deviation && type !== "hint_requested",
+    label,
+  });
+}
+
+function drawReportChart() {
+  const c = els.reportChart, ctx = c.getContext("2d");
+  const W = c.width, H = c.height, pad = 26;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#0a1120"; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "#22304f"; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) { const y = pad + (H - 2 * pad) * i / 4; ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke(); }
+  const tl = state.timeline;
+  if (!tl.length) { ctx.fillStyle = "#8a99c0"; ctx.font = "12px sans-serif"; ctx.fillText("Bu seansta veri kaydı yok.", W / 2 - 70, H / 2); return; }
+  const n = tl.length;
+  const xAt = (i) => pad + (W - 2 * pad) * (n === 1 ? 0.5 : i / (n - 1));
+  const yAt = (v) => H - pad - (H - 2 * pad) * clamp(v, 0, 1);
+  const series = [
+    { key: "hr", color: "#f87171", max: 200 },
+    { key: "resp", color: "#60a5fa", max: 40 },
+    { key: "risk", color: "#fbbf24", max: 100 },
+  ];
+  for (const s of series) {
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.beginPath();
+    tl.forEach((p, i) => { const x = xAt(i), y = yAt(p[s.key] / s.max); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.stroke();
+    // Sapma noktalarını vurgula.
+    tl.forEach((p, i) => { if (!p.ok) { ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(xAt(i), yAt(p[s.key] / s.max), 2.6, 0, 7); ctx.fill(); } });
+  }
+  els.reportChartLegend.innerHTML =
+    '<span class="lg-hr">● Nabız (bpm)</span><span class="lg-resp">● Solunum (/dk)</span><span class="lg-risk">● Risk (%)</span>';
+}
+
+function renderFlow(events) {
+  if (!events || !events.length) { els.reportFlow.innerHTML = '<p class="muted">Kayıt yok.</p>'; return; }
+  els.reportFlow.innerHTML = events.map((e, i) => {
+    const ok = e.isSuccess;
+    const ins = e.instrumentCode ? ` · ${labelOf(e.instrumentCode)}` : "";
+    const dev = e.deviationType ? ` · ${e.deviationType}` : "";
+    const sc = typeof e.scoreChange === "number" ? `${e.scoreChange > 0 ? "+" : ""}${e.scoreChange}` : "";
+    return `<div class="flow-row ${ok ? "ok" : "bad"}">` +
+      `<span class="fr-idx">${i + 1}</span>` +
+      `<span class="fr-mark">${ok ? "✓" : "✕"}</span>` +
+      `<span class="fr-main">Adım ${e.stepId} · ${escapeHtml(e.eventType)}${escapeHtml(ins)}${escapeHtml(dev)}</span>` +
+      `<span class="fr-score">${sc}</span></div>`;
+  }).join("");
 }
 
 // ---- Genel ----
