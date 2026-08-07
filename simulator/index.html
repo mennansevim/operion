@@ -38,6 +38,16 @@
       <p class="muted">Seansı başlatın; ilk göreviniz burada görünecek.</p>
     </div>
 
+    <div id="evalStrip" class="eval-strip">
+      <span id="verdictBanner" class="eval-verdict ev-idle">Hazır</span>
+      <div class="eval-mini">
+        <span class="em good"><b id="cntCorrect">0</b><i>Doğru</i></span>
+        <span class="em bad"><b id="cntWrong">0</b><i>Hatalı</i></span>
+        <span class="em warn"><b id="cntSterile">0</b><i>Steril</i></span>
+        <span class="em info"><b id="cntHint">0</b><i>İpucu</i></span>
+      </div>
+    </div>
+
     <div class="topbar-status">
       <div class="score-ring">
         <div id="scoreValue" class="score-value">—</div>
@@ -80,17 +90,6 @@
         <h2 class="panel-title">� Kümülatif Komplikasyon</h2>
         <div id="compBoard" class="comp-board empty">
           <p class="muted">Hatalar biriktikçe en olası komplikasyonlar burada (max 5) görünür.</p>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2 class="panel-title">📊 Canlı Değerlendirme</h2>
-        <div id="verdictBanner" class="verdict verdict-idle">Henüz aksiyon yok</div>
-        <div class="counter-grid">
-          <div class="counter"><div id="cntCorrect" class="counter-num good">0</div><div class="counter-lbl">Doğru</div></div>
-          <div class="counter"><div id="cntWrong" class="counter-num bad">0</div><div class="counter-lbl">Hatalı</div></div>
-          <div class="counter"><div id="cntSterile" class="counter-num warn">0</div><div class="counter-lbl">Steril İhlali</div></div>
-          <div class="counter"><div id="cntHint" class="counter-num info">0</div><div class="counter-lbl">İpucu</div></div>
         </div>
       </section>
 

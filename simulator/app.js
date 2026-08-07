@@ -538,7 +538,7 @@ function updateSceneMode(step) {
 
 function setVerdict(kind, text) {
   els.verdictBanner.textContent = text;
-  els.verdictBanner.className = `verdict verdict-${kind}`;
+  els.verdictBanner.className = `eval-verdict ev-${kind}`;
 }
 
 function resetCounters() {
