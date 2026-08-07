@@ -59,6 +59,7 @@ public sealed class AiFeedbackService : IAiFeedbackService
         result.ResponseJson = JsonSerializer.Serialize(new { result.PossibleRisk, result.Explanation, result.RecommendedAction });
 
         var apiKey = _config["OpenAI:ApiKey"];
+        if (string.IsNullOrWhiteSpace(apiKey)) apiKey = _config["OPENAI_API_KEY"];
         if (string.IsNullOrWhiteSpace(apiKey))
             return result;
 
@@ -76,7 +77,7 @@ public sealed class AiFeedbackService : IAiFeedbackService
 
     private async Task RephraseWithLlm(AiFeedbackResult result, string apiKey, bool hasAdhesion, CancellationToken ct)
     {
-        var model = _config["OpenAI:Model"] ?? "gpt-4o-mini";
+        var model = _config["OpenAI:Model"] ?? _config["OPENAI_MODEL"] ?? "gpt-4o-mini";
         var system = "Sen ameliyathane scrub teknikeri eğitimi için bir cerrahi eğitmensin. Sana verilen doğrulanmış "
             + "klinik bulguyu (risk, açıklama, önerilen müdahale) kullanarak SADECE Türkçe, kısa ve pedagojik bir geri "
             + "bildirim yaz. Yeni tıbbi bilgi UYDURMA; yalnızca verilen içeriği yeniden ifade et. Yanıtı şu JSON şemasıyla "

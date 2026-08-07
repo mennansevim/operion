@@ -1,7 +1,11 @@
+using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.EntityFrameworkCore;
 using Operion.Api.Data;
 using Operion.Api.Hubs;
 using Operion.Api.Services;
+
+// .env dosyasındaki anahtarları (ör. OPENAI_API_KEY) ortam değişkenine yükle.
+LoadDotEnv();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +14,16 @@ builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
+
+// Tüm REST trafiğini (yol + gövde) konsola yazarak VR↔backend iletişimini görünür kılar.
+builder.Services.AddHttpLogging(o =>
+{
+    o.LoggingFields = HttpLoggingFields.RequestMethod | HttpLoggingFields.RequestPath
+        | HttpLoggingFields.RequestBody | HttpLoggingFields.ResponseStatusCode | HttpLoggingFields.ResponseBody;
+    o.RequestBodyLogLimit = 8192;
+    o.ResponseBodyLogLimit = 8192;
+    o.MediaTypeOptions.AddText("application/json");
+});
 
 builder.Services.AddCors(options =>
 {
@@ -45,6 +59,7 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
+app.UseHttpLogging();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors();
@@ -54,3 +69,28 @@ app.MapHub<SimulationHub>("/hubs/simulation");
 app.MapGet("/", () => Results.Ok(new { service = "Operion API", status = "ok" }));
 
 app.Run();
+
+static void LoadDotEnv()
+{
+    var candidates = new[]
+    {
+        Path.Combine(Directory.GetCurrentDirectory(), ".env"),
+        Path.Combine(AppContext.BaseDirectory, ".env"),
+    };
+    foreach (var path in candidates)
+    {
+        if (!File.Exists(path)) continue;
+        foreach (var raw in File.ReadAllLines(path))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line.StartsWith('#')) continue;
+            var idx = line.IndexOf('=');
+            if (idx <= 0) continue;
+            var key = line[..idx].Trim();
+            var val = line[(idx + 1)..].Trim().Trim('"');
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+                Environment.SetEnvironmentVariable(key, val);
+        }
+        return;
+    }
+}

@@ -94,6 +94,9 @@ public sealed class SessionController : ControllerBase
             });
         }
 
+        _logger.LogInformation("VR→REST | session={SessionId} event={Type} instrument={Instrument} target={Target} suture={Suture}",
+            sessionId, ev.EventType, ev.InstrumentCode ?? "-", ev.Target ?? "-", ev.SutureCode ?? "-");
+
         var outcome = _procedure.Validate(session, ev);
 
         _db.SessionEvents.Add(new SessionEventRecord
@@ -116,6 +119,9 @@ public sealed class SessionController : ControllerBase
             session.CompletedAt = DateTime.UtcNow;
         }
         await _db.SaveChangesAsync();
+
+        _logger.LogInformation("REST→VR | session={SessionId} step={Step} success={Success} deviation={Deviation} scoreChange={Change} score={Score}",
+            sessionId, outcome.CurrentStepId, outcome.Success, outcome.Deviation?.DeviationType ?? "-", outcome.ScoreChange, session.Score);
 
         await _hub.Clients.Group(sessionId).SendAsync("ScoreUpdate",
             new ScoreUpdateDto { SessionId = sessionId, Score = session.Score });
@@ -186,6 +192,36 @@ public sealed class SessionController : ControllerBase
             Score = session.Score,
             Status = session.Status
         });
+    }
+
+    [HttpGet("{sessionId}/events")]
+    public async Task<ActionResult> GetEvents(string sessionId)
+    {
+        var events = await _db.SessionEvents
+            .Where(e => e.SessionId == sessionId)
+            .OrderBy(e => e.CreatedAt)
+            .Select(e => new
+            {
+                e.EventId, e.EventType, e.StepId, e.InstrumentCode,
+                e.IsSuccess, e.DeviationType, e.ScoreChange, e.CreatedAt, e.PayloadJson
+            })
+            .ToListAsync();
+        return Ok(events);
+    }
+
+    [HttpGet("{sessionId}/feedbacks")]
+    public async Task<ActionResult> GetFeedbacks(string sessionId)
+    {
+        var feedbacks = await _db.AiFeedbacks
+            .Where(f => f.SessionId == sessionId)
+            .OrderBy(f => f.CreatedAt)
+            .Select(f => new
+            {
+                f.StepId, f.DeviationType, f.PossibleRisk, f.Explanation,
+                f.RecommendedAction, f.Severity, f.Source, f.ModelName, f.CreatedAt
+            })
+            .ToListAsync();
+        return Ok(feedbacks);
     }
 
     private AiFeedbackDto BuildComplication(string sessionId, string eventId, int stepId, DeviationDto dev)
