@@ -176,15 +176,20 @@ public sealed class SessionController : ControllerBase
             await _db.SaveChangesAsync();
         }
 
+        var totalActions = session.CorrectActions + session.WrongActions;
+        var successRate = totalActions == 0
+            ? 0
+            : (int)Math.Round(100.0 * session.CorrectActions / totalActions);
+
         return Ok(new ReportResponse
         {
             Score = session.Score,
-            SuccessRate = session.Score,
+            SuccessRate = successRate,
             CorrectActions = session.CorrectActions,
             WrongActions = session.WrongActions,
             SterileViolations = session.SterileViolations,
             HintsUsed = session.HintsUsed,
-            Summary = BuildSummary(session)
+            Summary = BuildSummary(session, successRate)
         });
     }
 
@@ -255,15 +260,18 @@ public sealed class SessionController : ControllerBase
         };
     }
 
-    private static string BuildSummary(SessionRecord s)
+    private static string BuildSummary(SessionRecord s, int successRate)
     {
-        var verdict = s.Score >= 85
+        var totalActions = s.CorrectActions + s.WrongActions;
+        var verdict = (s.WrongActions == 0 && successRate >= 95)
             ? "Genel performans başarılı."
-            : s.Score >= 60
-                ? "Performans yeterli; gelişime açık alanlar mevcut."
-                : "Performans yetersiz; prosedür sırası ve alet seçimi tekrar çalışılmalıdır.";
-        return $"Kullanıcı {s.CorrectActions} doğru, {s.WrongActions} hatalı aksiyon gerçekleştirdi. " +
-               $"Steril alan ihlali: {s.SterileViolations}, kullanılan ipucu: {s.HintsUsed}. {verdict}";
+            : successRate >= 75
+                ? "Performans yeterli; hatalar tekrar edilmemeli."
+                : successRate >= 50
+                    ? "Performans sınırda; prosedür sırası ve alet seçimi geliştirilmeli."
+                    : "Performans yetersiz; çok sayıda hata var, prosedür baştan çalışılmalı.";
+        return $"Toplam {totalActions} aksiyondan {s.CorrectActions} doğru, {s.WrongActions} hatalı (başarı %{successRate}). " +
+               $"Steril alan ihlali: {s.SterileViolations}, kullanılan ipucu: {s.HintsUsed}. Skor: {s.Score}/100. {verdict}";
     }
 
     private void QueueAiFeedback(string sessionId, string sessionEventId, string eventId,

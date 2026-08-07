@@ -227,7 +227,7 @@ async function startSession() {
     setVerdict("idle", `Seans başladı — ${data.scenarioName}`);
     toast("info", "Seans başladı. İlk görevinizi yapın.");
     log("success", "← Seans Başladı", data);
-    if (monitor.audioEnabled) ensureAudio();
+    if (monitor.audioEnabled) { ensureAudio(); startBreathing(); }
     await connectHub();
   } catch (e) {
     log("error", "✕ Başlatma Hatası", formatError(e));
@@ -244,6 +244,7 @@ async function endSession() {
   } catch (e) {
     log("error", "✕ Bitirme Hatası", formatError(e));
   } finally {
+    stopBreathing();
     await disconnectHub();
     state.sessionId = null;
     state.currentStep = null;
@@ -678,7 +679,7 @@ function ensureAudio() {
   const noise = ctx.createBufferSource();
   noise.buffer = buf; noise.loop = true;
   const filter = ctx.createBiquadFilter();
-  filter.type = "bandpass"; filter.frequency.value = 500; filter.Q.value = 0.7;
+  filter.type = "bandpass"; filter.frequency.value = 800; filter.Q.value = 1.0;
   const gain = ctx.createGain(); gain.gain.value = 0.0001;
   noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
   noise.start();
@@ -686,34 +687,68 @@ function ensureAudio() {
   monitor.noiseGain = gain;
   monitor.noiseFilter = filter;
   monitor.audioReady = true;
+}
+
+function startBreathing() {
+  if (!monitor.audioReady || !monitor.audioEnabled) return;
+  if (monitor.audioCtx?.state === "suspended") monitor.audioCtx.resume();
   scheduleBreath();
+}
+
+function stopBreathing() {
+  clearTimeout(monitor.breathTimer);
+  if (!monitor.noiseGain || !monitor.audioCtx) return;
+  const g = monitor.noiseGain.gain;
+  const t = monitor.audioCtx.currentTime;
+  g.cancelScheduledValues(t);
+  g.setValueAtTime(Math.max(0.0001, g.value), t);
+  g.linearRampToValueAtTime(0.0001, t + 0.2);
 }
 
 function scheduleBreath() {
   if (!monitor.audioReady) return;
   const ctx = monitor.audioCtx;
   const g = monitor.noiseGain.gain;
-  const period = 60 / clamp(monitor.respRate, 10, 40);
+  const f = monitor.noiseFilter.frequency;
+  // Hafif düzensizlik doğal his verir.
+  const cycle = (60 / clamp(monitor.respRate, 8, 40)) * (0.94 + Math.random() * 0.12);
   const t = ctx.currentTime;
-  const peak = monitor.audioEnabled ? clamp(0.04 + (monitor.stress / 100) * 0.22, 0.04, 0.3) : 0.0001;
+  const amp = monitor.audioEnabled ? clamp(0.05 + (monitor.stress / 100) * 0.2, 0.05, 0.28) : 0.0001;
+  const inPeak = amp * 0.75;   // iç çekiş daha yumuşak
+  const exPeak = amp;          // veriş daha belirgin
+
   g.cancelScheduledValues(t);
-  g.setValueAtTime(Math.max(0.0001, g.value), t);
-  g.linearRampToValueAtTime(peak, t + period * 0.4);        // nefes al
-  g.linearRampToValueAtTime(0.0001, t + period * 0.9);      // nefes ver
-  monitor.noiseFilter.frequency.setValueAtTime(420, t);
-  monitor.noiseFilter.frequency.linearRampToValueAtTime(560, t + period * 0.4);
+  f.cancelScheduledValues(t);
+  g.setValueAtTime(0.0001, t);
+
+  // İç çekiş (inhale): kısa, parlak.
+  const inStart = t + cycle * 0.02;
+  const inTop = t + cycle * 0.15;
+  const inEnd = t + cycle * 0.32;
+  f.setValueAtTime(1050, inStart);
+  g.setValueAtTime(0.0001, inStart);
+  g.linearRampToValueAtTime(inPeak, inTop);
+  g.linearRampToValueAtTime(0.0002, inEnd);
+
+  // Kısa duraklama, sonra veriş (exhale): uzun, boğuk, sönümlü.
+  const exStart = t + cycle * 0.42;
+  const exTop = t + cycle * 0.56;
+  const exEnd = t + cycle * 0.92;
+  f.setValueAtTime(560, exStart);
+  g.setValueAtTime(0.0001, exStart);
+  g.linearRampToValueAtTime(exPeak, exTop);
+  g.exponentialRampToValueAtTime(0.0002, exEnd);
+
   clearTimeout(monitor.breathTimer);
-  monitor.breathTimer = setTimeout(scheduleBreath, period * 1000);
+  monitor.breathTimer = setTimeout(scheduleBreath, cycle * 1000);
 }
 
 function toggleAudio() {
   monitor.audioEnabled = !monitor.audioEnabled;
   els.audioToggle.classList.toggle("off", !monitor.audioEnabled);
   els.audioToggle.textContent = monitor.audioEnabled ? "🔊" : "🔇";
-  if (monitor.audioEnabled) {
-    ensureAudio();
-    if (monitor.audioCtx?.state === "suspended") monitor.audioCtx.resume();
-  }
+  if (monitor.audioEnabled) { ensureAudio(); startBreathing(); }
+  else { stopBreathing(); }
 }
 
 function updateCounters() {
