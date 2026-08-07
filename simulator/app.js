@@ -104,7 +104,7 @@ function toast(kind, msg) {
 }
 
 // Alt konsol: her isteği KAYNAĞINI vurgulayarak listeler.
-function traffic(kind, source, srcClass, dir, label, detail) {
+function traffic(kind, source, srcClass, dir, label, detail, minor = "") {
   const row = document.createElement("div");
   row.className = `tr-row tr-${kind}`;
   const cell = (cls, txt) => { const s = document.createElement("span"); s.className = cls; s.textContent = txt; return s; };
@@ -113,7 +113,8 @@ function traffic(kind, source, srcClass, dir, label, detail) {
     cell(`src ${srcClass}`, source),
     cell("tr-dir", dir),
     cell("tr-label", label),
-    cell("tr-detail", detail || "")
+    cell("tr-detail", detail || ""),
+    cell("tr-minor", minor || "")
   );
   els.traffic.appendChild(row);
   els.traffic.scrollTop = els.traffic.scrollHeight;
@@ -285,7 +286,15 @@ async function connectHub() {
     const conn = new signalR.HubConnectionBuilder()
       .withUrl(`${baseUrl()}/hubs/simulation`).withAutomaticReconnect().build();
     conn.on("AiFeedback", (fb) => {
-      traffic("ai", "AI·LLM", "src-aillm", "↺", "SignalR AiFeedback", `${fb.deviationType}${fb.totalTokens ? ` · ${fb.totalTokens} token` : ""} · ${fb.possibleRisk || ""}`);
+      traffic(
+        "ai",
+        "AI·LLM",
+        "src-aillm",
+        "↺",
+        "SignalR AiFeedback",
+        `${fb.deviationType} · ${fb.possibleRisk || ""}`,
+        fb.totalTokens ? `${fb.totalTokens} token` : ""
+      );
       showAiFeedback(fb);
     });
     conn.on("ScoreUpdate", (u) => {
