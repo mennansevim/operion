@@ -199,6 +199,8 @@ function handleResponse(sentType, data) {
     toast("bad", `${d.deviationType} — ${data.message || ""}`);
     log("error", `⚠ Sapma: ${d.deviationType}`,
       `Beklenen: ${d.expected ?? "-"}\nGerçekleşen: ${d.actual ?? "-"}\nŞiddet: ${d.severity ?? "-"}\n${data.message ?? ""}`);
+    // Komplikasyon REST yanıtıyla anında gelir (SignalR'a bağlı değil).
+    if (data.complication) showAiFeedback(data.complication);
   } else if (sentType === "hint_requested") {
     if (!replay) state.counters.hint++;
     setVerdict("info", "İPUCU");

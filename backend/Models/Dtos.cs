@@ -57,6 +57,8 @@ public sealed class ValidationResponse
     public bool AllowRetry { get; set; }
     public bool Completed { get; set; }
     public StepView? NextStep { get; set; }
+    // Deterministik komplikasyon açıklaması (klinik tablodan); SignalR'a bağlı kalmadan anında döner.
+    public AiFeedbackDto? Complication { get; set; }
 }
 
 public sealed class ReportResponse

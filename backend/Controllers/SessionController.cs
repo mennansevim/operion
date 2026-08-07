@@ -120,8 +120,10 @@ public sealed class SessionController : ControllerBase
         await _hub.Clients.Group(sessionId).SendAsync("ScoreUpdate",
             new ScoreUpdateDto { SessionId = sessionId, Score = session.Score });
 
+        AiFeedbackDto? complication = null;
         if (outcome.Deviation is not null)
         {
+            complication = BuildComplication(sessionId, ev.EventId, outcome.CurrentStepId, outcome.Deviation);
             var hasAdhesion = _store.GetScenario(session.ScenarioId)?.Patient.HasAdhesion ?? false;
             QueueAiFeedback(sessionId, sessionEventId, ev.EventId, outcome.CurrentStepId, outcome.Deviation, hasAdhesion);
         }
@@ -136,7 +138,8 @@ public sealed class SessionController : ControllerBase
             Message = outcome.Message,
             AllowRetry = outcome.AllowRetry,
             Completed = outcome.Completed,
-            NextStep = outcome.NextStep
+            NextStep = outcome.NextStep,
+            Complication = complication
         });
     }
 
@@ -185,6 +188,23 @@ public sealed class SessionController : ControllerBase
         });
     }
 
+    private AiFeedbackDto BuildComplication(string sessionId, string eventId, int stepId, DeviationDto dev)
+    {
+        var e = _store.GetClinicalEntry(stepId, dev.DeviationType);
+        return new AiFeedbackDto
+        {
+            SessionId = sessionId,
+            EventId = eventId,
+            StepId = stepId,
+            DeviationType = dev.DeviationType,
+            PossibleRisk = e?.PossibleRisk ?? "Prosedür kuralına aykırı bir işlem tespit edildi.",
+            Explanation = e?.Explanation ?? "Bu eylem kanonik prosedür sırasına veya alet uygunluğuna aykırıdır.",
+            RecommendedAction = e?.RecommendedAction ?? "Doğru adımı ve uygun aleti kontrol ederek işlemi tekrarlayın.",
+            Severity = dev.Severity,
+            Source = "table"
+        };
+    }
+
     private static string BuildSummary(SessionRecord s)
     {
         var verdict = s.Score >= 85
@@ -227,6 +247,9 @@ public sealed class SessionController : ControllerBase
                     ResponseJson = result.ResponseJson
                 });
                 await db.SaveChangesAsync();
+
+                // Deterministik komplikasyon zaten REST yanıtında döndü; SignalR'ı yalnızca LLM zenginleştirmesi için kullan.
+                if (result.Source != "llm") return;
 
                 await hub.Clients.Group(sessionId).SendAsync("AiFeedback", new AiFeedbackDto
                 {
