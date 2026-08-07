@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Operion — Olay Simülatörü</title>
+  <title>Operion — Ameliyathane Simülasyonu</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -13,19 +13,15 @@
       <span class="brand-mark">⊕</span>
       <div>
         <div class="brand-title">Operion</div>
-        <div class="brand-sub">Açık Apendektomi — Olay Simülatörü</div>
+        <div class="brand-sub">Açık Apendektomi — Scrub Teknikeri Simülasyonu</div>
       </div>
     </div>
 
     <div class="topbar-controls">
       <label class="field">
-        <span>Backend URL</span>
-        <input id="baseUrl" type="text" value="http://localhost:5080" />
-      </label>
-      <label class="field">
         <span>Senaryo</span>
         <select id="scenario">
-          <option value="case-basic-01">Standart Açık Apendektomi</option>
+          <option value="case-basic-01">Standart Vaka</option>
           <option value="case-adhesion-01">Yapışıklıklı Vaka</option>
         </select>
       </label>
@@ -33,97 +29,170 @@
         <span>Kullanıcı</span>
         <input id="userId" type="text" value="u1" />
       </label>
-      <button id="startBtn" class="btn btn-primary">Seansı Başlat</button>
-      <button id="endBtn" class="btn btn-danger" disabled>Seansı Bitir</button>
+      <button id="startBtn" class="btn btn-primary">▶ Seansı Başlat</button>
+      <button id="endBtn" class="btn btn-danger" disabled>■ Bitir & Rapor</button>
+      <button id="helpBtn" class="btn btn-ghost" title="Nasıl kullanılır?">?</button>
     </div>
 
     <div class="topbar-status">
-      <div class="score-box">
-        <div class="score-label">Skor</div>
+      <div class="score-ring">
         <div id="scoreValue" class="score-value">—</div>
+        <div class="score-label">SKOR</div>
       </div>
       <div class="progress-wrap">
         <div class="progress-meta">
           <span id="progressLabel">Adım 0 / 18</span>
-          <span id="connState" class="conn-badge conn-off">Bağlı değil</span>
+          <span id="connState" class="conn-badge conn-off">● Bağlı değil</span>
         </div>
         <div class="progress-track">
           <div id="progressBar" class="progress-fill" style="width:0%"></div>
         </div>
+        <label class="field field-inline">
+          <span>Backend</span>
+          <input id="baseUrl" type="text" value="http://localhost:5080" />
+        </label>
       </div>
     </div>
   </header>
 
-  <main class="layout">
-    <!-- Sol Panel: Mevcut Görev -->
-    <section class="panel">
-      <h2 class="panel-title">Mevcut Görev</h2>
-      <div id="taskCard" class="task-card empty">
-        <p class="muted">Seans başlatılmadı.</p>
-      </div>
-    </section>
+  <!-- Anlık geri bildirim afişi -->
+  <div id="toast" class="toast hidden"></div>
 
-    <!-- Orta Panel: Aksiyonlar -->
-    <section class="panel">
-      <h2 class="panel-title">Aksiyonlar</h2>
-
-      <div class="action-controls">
-        <label class="field">
-          <span>Hedef</span>
-          <select id="targetSelect">
-            <option value="SURGEON">SURGEON</option>
-            <option value="DIRTY_AREA">DIRTY_AREA</option>
-            <option value="PATHOLOGY_CONTAINER">PATHOLOGY_CONTAINER</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Sütür</span>
-          <select id="sutureSelect">
-            <option value="">(yok)</option>
-          </select>
-        </label>
-        <button id="correctBtn" class="btn btn-success">Doğru Aleti Gönder</button>
-      </div>
-
-      <h3 class="subhead">Aletler (instrument_delivered)</h3>
-      <div id="instrumentGrid" class="instrument-grid"></div>
-
-      <h3 class="subhead">Özel Olaylar</h3>
-      <div class="special-grid">
-        <button data-evt="sterile_area_violated" class="btn btn-warn">Steril Alan İhlali</button>
-        <button data-evt="instrument_dropped" class="btn btn-warn">Alet Düştü</button>
-        <button id="countBtn" class="btn btn-ghost">Sayımı Onayla</button>
-        <button data-evt="step_completed" class="btn btn-ghost">Adımı Tamamla</button>
-        <button data-evt="hint_requested" class="btn btn-ghost">İpucu İste</button>
-      </div>
-
-      <!-- Sayım giriş alanı -->
-      <div id="countPanel" class="count-panel hidden">
-        <div class="count-inputs">
-          <label class="field"><span>COMPRESS</span><input id="cntCompress" type="number" value="10" /></label>
-          <label class="field"><span>INSTRUMENT</span><input id="cntInstrument" type="number" value="20" /></label>
-          <label class="field"><span>NEEDLE</span><input id="cntNeedle" type="number" value="3" /></label>
+  <main class="stage-layout">
+    <!-- SOL: Görev Rehberi + Değerlendirme + AI -->
+    <div class="col col-left">
+      <section class="panel">
+        <h2 class="panel-title">🎯 Görev Rehberi</h2>
+        <div id="taskCard" class="task-card empty">
+          <p class="muted">Seansı başlatın; ilk göreviniz burada görünecek.</p>
         </div>
-        <button id="countSendBtn" class="btn btn-primary">Sayımı Gönder</button>
-      </div>
-    </section>
+      </section>
 
-    <!-- Sağ Panel: Canlı Akış -->
-    <section class="panel log-panel">
-      <div class="log-header">
-        <h2 class="panel-title">Canlı Akış (Log)</h2>
-        <button id="clearLogBtn" class="btn btn-mini">Temizle</button>
-      </div>
-      <div id="log" class="log"></div>
-    </section>
+      <section class="panel">
+        <h2 class="panel-title">📊 Canlı Değerlendirme</h2>
+        <div id="verdictBanner" class="verdict verdict-idle">Henüz aksiyon yok</div>
+        <div class="counter-grid">
+          <div class="counter"><div id="cntCorrect" class="counter-num good">0</div><div class="counter-lbl">Doğru</div></div>
+          <div class="counter"><div id="cntWrong" class="counter-num bad">0</div><div class="counter-lbl">Hatalı</div></div>
+          <div class="counter"><div id="cntSterile" class="counter-num warn">0</div><div class="counter-lbl">Steril İhlali</div></div>
+          <div class="counter"><div id="cntHint" class="counter-num info">0</div><div class="counter-lbl">İpucu</div></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel-title">🧠 AI Geri Bildirim</h2>
+        <div id="aiCard" class="ai-card empty">
+          <p class="muted">Bir hata yaptığınızda, olası klinik komplikasyon ve doğru müdahale açıklaması burada belirir.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- ORTA: Ameliyathane Sahnesi -->
+    <div class="col col-center">
+      <section class="panel scene">
+        <h2 class="panel-title">🏥 Ameliyathane Sahnesi</h2>
+
+        <!-- Hedef bölgeleri -->
+        <div class="zones">
+          <div class="zone" data-zone="SURGEON">
+            <div class="zone-icon">🩺</div>
+            <div class="zone-name">Cerrah</div>
+            <div class="zone-sub">alet teslim et</div>
+          </div>
+          <div class="zone" data-zone="DIRTY_AREA">
+            <div class="zone-icon">🗑️</div>
+            <div class="zone-name">Kirli Alan</div>
+            <div class="zone-sub">kirli aleti bırak</div>
+          </div>
+          <div class="zone" data-zone="PATHOLOGY_CONTAINER">
+            <div class="zone-icon">🧪</div>
+            <div class="zone-name">Patoloji Kabı</div>
+            <div class="zone-sub">spesimeni bırak</div>
+          </div>
+        </div>
+
+        <!-- Elde tutulan alet -->
+        <div id="handBar" class="hand-bar">
+          <div class="hand-left">
+            <span class="hand-lbl">Elinizde:</span>
+            <span id="handHolding" class="hand-holding empty">— (tepsiden bir alet seçin) —</span>
+          </div>
+          <label id="sutureWrap" class="field field-inline hidden">
+            <span>Sütür</span>
+            <select id="sutureSelect"><option value="">(yok)</option></select>
+          </label>
+          <button id="autoBtn" class="btn btn-mini btn-success" title="Bu adımın doğru aletini otomatik teslim et">⚡ Doğru aleti gönder</button>
+          <button id="releaseBtn" class="btn btn-mini btn-ghost" disabled>Bırak</button>
+        </div>
+
+        <!-- Sayım modu (yalnızca sayım adımında) -->
+        <div id="countMode" class="count-mode hidden">
+          <p class="count-help">Kapanış öncesi sayım. Değerler beklenenle eşleşmezse <b>COUNT_MISMATCH</b> sapması oluşur.</p>
+          <div class="count-inputs">
+            <label class="field"><span>Kompres</span><input id="cntCompress" type="number" value="10" /></label>
+            <label class="field"><span>Alet</span><input id="cntInstrument" type="number" value="20" /></label>
+            <label class="field"><span>İğne</span><input id="cntNeedle" type="number" value="3" /></label>
+          </div>
+          <button id="countSendBtn" class="btn btn-primary">✔ Sayımı Onayla</button>
+        </div>
+
+        <!-- Alet tepsisi -->
+        <div id="trayWrap">
+          <h3 class="subhead">🧰 Alet Tepsisi <span class="muted">— sürükleyip bir bölgeye bırakın veya tıklayıp bölge seçin</span></h3>
+          <div id="instrumentGrid" class="tray-grid"></div>
+        </div>
+
+        <!-- Özel olaylar -->
+        <h3 class="subhead">⚠ Özel Olaylar</h3>
+        <div class="special-grid">
+          <button data-evt="sterile_area_violated" class="btn btn-warn">🧫 Steril Alan İhlali</button>
+          <button data-evt="instrument_dropped" class="btn btn-warn">⬇ Alet Düştü</button>
+          <button data-evt="hint_requested" class="btn btn-ghost">💡 İpucu İste</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- SAĞ: Prosedür adımları + geliştirici logu -->
+    <div class="col col-right">
+      <section class="panel">
+        <h2 class="panel-title">📋 Prosedür Adımları</h2>
+        <ol id="stepList" class="step-list"></ol>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="log-header">
+          <button id="logToggle" class="log-toggle">▸ Geliştirici Günlüğü (JSON)</button>
+          <button id="clearLogBtn" class="btn btn-mini">Temizle</button>
+        </div>
+        <div id="log" class="log hidden"></div>
+      </section>
+    </div>
   </main>
 
   <!-- Rapor Modalı -->
   <div id="reportModal" class="modal hidden">
     <div class="modal-card">
-      <h2>Seans Raporu</h2>
+      <h2>🏁 Seans Raporu</h2>
       <div id="reportBody" class="report-body"></div>
       <button id="closeReportBtn" class="btn btn-primary">Kapat</button>
+    </div>
+  </div>
+
+  <!-- Yardım Modalı -->
+  <div id="helpModal" class="modal hidden">
+    <div class="modal-card modal-wide">
+      <h2>❓ Nasıl Kullanılır?</h2>
+      <ol class="help-list">
+        <li><b>Seansı Başlat</b>'a basın. Sol üstte ilk görev, sağda 18 adımlık kontrol listesi belirir.</li>
+        <li><b>Görev Rehberi</b> size ne yapmanız gerektiğini düz Türkçe anlatır. Beklenen alet(ler) tepside <span class="hl-g">yeşil</span> parlar; hedef bölge de vurgulanır.</li>
+        <li>Tepsiden bir aleti <b>sürükleyip</b> doğru bölgeye (🩺 Cerrah / 🗑️ Kirli Alan / 🧪 Patoloji) bırakın — ya da alete tıklayıp sonra bölgeye tıklayın.</li>
+        <li>Sütür gereken adımlarda <b>Sütür</b> menüsü otomatik açılır ve doğru sütür seçilir; test için değiştirebilirsiniz.</li>
+        <li>Sayım adımında değerleri girip <b>Sayımı Onayla</b>'ya basın.</li>
+        <li>Yanlış alet, yanlış sütür, steril ihlali gibi durumlarda üstte <span class="hl-r">kırmızı</span> afiş çıkar ve <b>AI Geri Bildirim</b> paneli klinik açıklamayı gösterir.</li>
+        <li><b>⚡ Doğru aleti gönder</b> düğmesi hızlı demo için o adımın doğru aletini otomatik teslim eder.</li>
+        <li>Bitince <b>Bitir & Rapor</b> ile skor ve performans özetini görün.</li>
+      </ol>
+      <button id="closeHelpBtn" class="btn btn-primary">Anladım</button>
     </div>
   </div>
 

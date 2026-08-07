@@ -1,71 +1,92 @@
-// Operion — Web tabanlı olay simülatörü
-// Backend'i Unity/VR olmadan test etmek için event gönderir, yanıtları loglar.
+// Operion — Ameliyathane simülasyonu (web).
+// Unity/VR olmadan tüm eğitim döngüsünü görsel olarak test etmek için event üretir.
 
-// ---- Prosedür kataloğu (open-appendectomy-v1.json'dan) ----
+// ---- Alet kataloğu (open-appendectomy-v1.json ile birebir + görsel ikonlar) ----
 const INSTRUMENT_CATALOG = [
-  { code: "SCALPEL_NO_15", name: "No:15 Bistüri (No:3 sap)" },
-  { code: "SCALPEL_NO_15_USED", name: "Kullanılmış/Kirli No:15 Bistüri" },
-  { code: "MONOPOLAR_CAUTERY", name: "Monopolar Koter Kalemi" },
-  { code: "MAYO_SCISSORS", name: "Mayo Makası" },
-  { code: "METZENBAUM_SCISSORS", name: "Metzenbaum Makası" },
-  { code: "STILLE_FORCEPS", name: "Stille Penset" },
-  { code: "DEBAKEY_FORCEPS", name: "DeBakey Penset" },
-  { code: "FARABEUF_RETRACTOR", name: "Farabeuf Ekartör" },
-  { code: "ROUX_RETRACTOR", name: "Roux Ekartör" },
-  { code: "LANGENBECK_RETRACTOR", name: "Langenbeck Ekartör" },
-  { code: "BABCOCK_ATRAUMATIC", name: "Atravmatik Babcock" },
-  { code: "MOSQUITO_CLAMP", name: "Mosquito Klemp" },
-  { code: "PEAN_CLAMP", name: "Pean Klemp" },
-  { code: "STRAIGHT_CLAMP_ATRAUMATIC", name: "Düz Dişsiz İşaret Pensi" },
-  { code: "NEEDLE_HOLDER", name: "Portegü" },
-  { code: "FOERSTER_CLAMP", name: "Foerster Klemp" },
+  { code: "SCALPEL_NO_15", name: "No:15 Bistüri", icon: "🔪" },
+  { code: "SCALPEL_NO_15_USED", name: "Kirli No:15 Bistüri", icon: "🩸" },
+  { code: "MONOPOLAR_CAUTERY", name: "Monopolar Koter", icon: "⚡" },
+  { code: "MAYO_SCISSORS", name: "Mayo Makası", icon: "✂️" },
+  { code: "METZENBAUM_SCISSORS", name: "Metzenbaum Makası", icon: "✂️" },
+  { code: "STILLE_FORCEPS", name: "Stille Penset", icon: "🥢" },
+  { code: "DEBAKEY_FORCEPS", name: "DeBakey Penset", icon: "🥢" },
+  { code: "FARABEUF_RETRACTOR", name: "Farabeuf Ekartör", icon: "🪝" },
+  { code: "ROUX_RETRACTOR", name: "Roux Ekartör", icon: "🪝" },
+  { code: "LANGENBECK_RETRACTOR", name: "Langenbeck Ekartör", icon: "🪝" },
+  { code: "BABCOCK_ATRAUMATIC", name: "Atravmatik Babcock", icon: "🗜️" },
+  { code: "MOSQUITO_CLAMP", name: "Mosquito Klemp", icon: "🗜️" },
+  { code: "PEAN_CLAMP", name: "Pean Klemp", icon: "🗜️" },
+  { code: "STRAIGHT_CLAMP_ATRAUMATIC", name: "Düz İşaret Pensi", icon: "📎" },
+  { code: "NEEDLE_HOLDER", name: "Portegü", icon: "🪡" },
+  { code: "FOERSTER_CLAMP", name: "Foerster Klemp", icon: "🗜️" },
 ];
 
 const SUTURE_CATALOG = [
   { code: "SILK_3_0", name: "3/0 İpek" },
-  { code: "VICRYL_2_0", name: "2/0 Vicryl (Poliglaktin)" },
+  { code: "VICRYL_2_0", name: "2/0 Vicryl" },
   { code: "VICRYL_1_0", name: "0/1 Vicryl" },
   { code: "PROLENE_0", name: "0 Prolen" },
   { code: "POLYAMIDE_4_0", name: "4/0 Polyamid" },
 ];
 
-const TOTAL_STEPS = 18;
+// ---- 18 adımlık prosedür (kontrol listesi + görev rehberi için) ----
+const STEPS = [
+  { id: 1, phase: "Giriş", title: "Cilt insizyonu", instruction: "Cerraha No:15 bistüriyi teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["SCALPEL_NO_15"] },
+  { id: 2, phase: "Giriş", title: "Cilt altı/fasya diseksiyonu", instruction: "Cerraha monopolar koter kalemini teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["MONOPOLAR_CAUTERY"] },
+  { id: 3, phase: "Giriş", title: "Kas künt diseksiyonu", instruction: "Cerraha mayo makasını teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["MAYO_SCISSORS"] },
+  { id: 4, phase: "Giriş", title: "Periton açılması", instruction: "Cerraha stille (veya DeBakey) pensetini teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["STILLE_FORCEPS", "DEBAKEY_FORCEPS"] },
+  { id: 5, phase: "Ekartasyon", title: "Ekartör yerleştirme", instruction: "Cerraha uygun ekartörü (Farabeuf/Roux/Langenbeck) teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["FARABEUF_RETRACTOR", "ROUX_RETRACTOR", "LANGENBECK_RETRACTOR"] },
+  { id: 6, phase: "Çekum", title: "Çekumun tutulması", instruction: "Cerraha atravmatik Babcock'ı teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["BABCOCK_ATRAUMATIC"] },
+  { id: 7, phase: "Appendiks", title: "Appendiks ucunun tutulması", instruction: "Cerraha Babcock'ı teslim edin (appendiks ucu).", event: "instrument_delivered", target: "SURGEON", allowed: ["BABCOCK_ATRAUMATIC"] },
+  { id: 8, phase: "Mezoappendiks", title: "Mezoappendiks bağlanması", instruction: "Mosquito/Pean klemp veya portegüyü teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["MOSQUITO_CLAMP", "PEAN_CLAMP", "NEEDLE_HOLDER"] },
+  { id: 9, phase: "Kök hazırlık", title: "Purse-string sütürü", instruction: "Portegüye 3/0 ipek takıp cerraha teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["NEEDLE_HOLDER"], suture: "SILK_3_0" },
+  { id: 10, phase: "Kök bağlama", title: "Kök bağlama", instruction: "Portegüye 2/0 Vicryl takıp cerraha teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["NEEDLE_HOLDER"], suture: "VICRYL_2_0" },
+  { id: 11, phase: "İşaret pensi", title: "İşaret pensi", instruction: "Cerraha düz dişsiz işaret pensini teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["STRAIGHT_CLAMP_ATRAUMATIC"] },
+  { id: 12, phase: "Kesim", title: "Appendiks kesimi", instruction: "Cerraha No:15 bistüriyi teslim edin (appendiks kesimi).", event: "instrument_delivered", target: "SURGEON", allowed: ["SCALPEL_NO_15"] },
+  { id: 13, phase: "Temizlik", title: "Kirli bistüri ucunu değiştir", instruction: "Kirlenmiş bistüri ucunu KİRLİ ALANA bırakın.", event: "instrument_placed", target: "DIRTY_AREA", allowed: ["SCALPEL_NO_15_USED"] },
+  { id: 14, phase: "Spesimen", title: "Spesimeni gönder", instruction: "Spesimeni (Babcock) PATOLOJİ KABINA bırakın.", event: "instrument_placed", target: "PATHOLOGY_CONTAINER", allowed: ["BABCOCK_ATRAUMATIC"] },
+  { id: 15, phase: "Sayım", title: "Kapanış öncesi sayım", instruction: "Kompres/alet/iğne sayımını yapıp onaylayın.", event: "count_confirmed", counts: { COMPRESS: 10, INSTRUMENT: 20, NEEDLE: 3 } },
+  { id: 16, phase: "Periton kapatma", title: "Periton kapatma", instruction: "Portegüye 0/1 Vicryl takıp cerraha teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["NEEDLE_HOLDER"], suture: "VICRYL_1_0" },
+  { id: 17, phase: "Fasya kapatma", title: "Fasya kapatma", instruction: "Portegüye 0 Prolen takıp cerraha teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["NEEDLE_HOLDER"], suture: "PROLENE_0" },
+  { id: 18, phase: "Cilt kapatma", title: "Cilt kapatma & pansuman", instruction: "Portegüye 4/0 Polyamid takıp cerraha teslim edin.", event: "instrument_delivered", target: "SURGEON", allowed: ["NEEDLE_HOLDER"], suture: "POLYAMIDE_4_0" },
+];
+const TOTAL_STEPS = STEPS.length;
+const stepMeta = (id) => STEPS.find((s) => s.id === id);
+
+const ZONE_MAP = {
+  SURGEON: { eventType: "instrument_delivered", target: "SURGEON" },
+  DIRTY_AREA: { eventType: "instrument_placed", target: "DIRTY_AREA" },
+  PATHOLOGY_CONTAINER: { eventType: "instrument_placed", target: "PATHOLOGY_CONTAINER" },
+};
 
 // ---- Durum ----
 const state = {
   sessionId: null,
   currentStep: null,
   connection: null,
+  holding: null,
+  counters: { correct: 0, wrong: 0, sterile: 0, hint: 0 },
 };
 
 // ---- DOM kısayolları ----
 const $ = (id) => document.getElementById(id);
 const els = {
-  baseUrl: $("baseUrl"),
-  scenario: $("scenario"),
-  userId: $("userId"),
-  startBtn: $("startBtn"),
-  endBtn: $("endBtn"),
-  scoreValue: $("scoreValue"),
-  progressBar: $("progressBar"),
-  progressLabel: $("progressLabel"),
-  connState: $("connState"),
-  taskCard: $("taskCard"),
-  targetSelect: $("targetSelect"),
-  sutureSelect: $("sutureSelect"),
-  correctBtn: $("correctBtn"),
-  instrumentGrid: $("instrumentGrid"),
-  countBtn: $("countBtn"),
-  countPanel: $("countPanel"),
-  countSendBtn: $("countSendBtn"),
-  cntCompress: $("cntCompress"),
-  cntInstrument: $("cntInstrument"),
-  cntNeedle: $("cntNeedle"),
-  log: $("log"),
-  clearLogBtn: $("clearLogBtn"),
-  reportModal: $("reportModal"),
-  reportBody: $("reportBody"),
-  closeReportBtn: $("closeReportBtn"),
+  baseUrl: $("baseUrl"), scenario: $("scenario"), userId: $("userId"),
+  startBtn: $("startBtn"), endBtn: $("endBtn"), helpBtn: $("helpBtn"),
+  scoreValue: $("scoreValue"), progressBar: $("progressBar"), progressLabel: $("progressLabel"), connState: $("connState"),
+  toast: $("toast"),
+  taskCard: $("taskCard"), verdictBanner: $("verdictBanner"),
+  cntCorrect: $("cntCorrect"), cntWrong: $("cntWrong"), cntSterile: $("cntSterile"), cntHint: $("cntHint"),
+  aiCard: $("aiCard"),
+  handHolding: $("handHolding"), sutureWrap: $("sutureWrap"), sutureSelect: $("sutureSelect"),
+  autoBtn: $("autoBtn"), releaseBtn: $("releaseBtn"),
+  countMode: $("countMode"), countSendBtn: $("countSendBtn"),
+  cntCompress: $("cntCompress"), cntInstrument: $("cntInstrument"), cntNeedle: $("cntNeedle"),
+  trayWrap: $("trayWrap"), instrumentGrid: $("instrumentGrid"),
+  stepList: $("stepList"),
+  log: $("log"), logToggle: $("logToggle"), clearLogBtn: $("clearLogBtn"),
+  reportModal: $("reportModal"), reportBody: $("reportBody"), closeReportBtn: $("closeReportBtn"),
+  helpModal: $("helpModal"), closeHelpBtn: $("closeHelpBtn"),
 };
 
 // ---- Yardımcılar ----
@@ -73,32 +94,32 @@ const baseUrl = () => els.baseUrl.value.replace(/\/+$/, "");
 const nowIso = () => new Date().toISOString();
 const timeLabel = () => new Date().toLocaleTimeString("tr-TR");
 
-function log(kind, tag, contentNode) {
+function toast(kind, msg) {
+  els.toast.textContent = msg;
+  els.toast.className = `toast toast-${kind}`;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => els.toast.classList.add("hidden"), 2600);
+}
+
+function log(kind, tag, content) {
   const entry = document.createElement("div");
   entry.className = `log-entry log-${kind}`;
   const head = document.createElement("div");
   head.className = "le-head";
   head.innerHTML = `<span class="le-tag">${tag}</span><span class="le-time">${timeLabel()}</span>`;
   entry.appendChild(head);
-  if (typeof contentNode === "string") {
+  if (content) {
     const pre = document.createElement("pre");
-    pre.textContent = contentNode;
+    pre.textContent = typeof content === "string" ? content : JSON.stringify(content, null, 2);
     entry.appendChild(pre);
-  } else if (contentNode) {
-    entry.appendChild(contentNode);
   }
   els.log.appendChild(entry);
   els.log.scrollTop = els.log.scrollHeight;
 }
 
-function logJson(kind, tag, obj) {
-  log(kind, tag, JSON.stringify(obj, null, 2));
-}
-
 // ---- Backend çağrıları ----
 async function postJson(path, body) {
-  const url = `${baseUrl()}${path}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${baseUrl()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -106,76 +127,37 @@ async function postJson(path, body) {
   const text = await res.text();
   let data;
   try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}`);
-    err.data = data;
-    throw err;
-  }
+  if (!res.ok) { const e = new Error(`HTTP ${res.status}`); e.data = data; throw e; }
   return data;
 }
 
-// ---- Seans başlat ----
+// ---- Seans yaşam döngüsü ----
 async function startSession() {
   const body = { userId: els.userId.value.trim() || "u1", scenarioId: els.scenario.value };
-  log("info", "→ Seans Başlat", JSON.stringify(body, null, 2));
+  resetCounters();
+  log("info", "→ Seans Başlat", body);
   try {
     const data = await postJson("/api/sessions", body);
     state.sessionId = data.sessionId;
-    logJson("success", "← Seans Başladı", data);
     setScore(data.score);
     setStep(data.currentStep);
     els.startBtn.disabled = true;
     els.endBtn.disabled = false;
+    setVerdict("idle", `Seans başladı — ${data.scenarioName}`);
+    toast("info", "Seans başladı. İlk görevinizi yapın.");
+    log("success", "← Seans Başladı", data);
     await connectHub();
   } catch (e) {
     log("error", "✕ Başlatma Hatası", formatError(e));
+    toast("bad", "Backend'e bağlanılamadı. Çalışıyor mu? (dotnet run)");
   }
 }
 
-// ---- Olay gönder ----
-async function sendEvent(fields) {
-  if (!state.sessionId) {
-    log("error", "✕ Uyarı", "Önce seansı başlatın.");
-    return;
-  }
-  const payload = { eventId: crypto.randomUUID(), timestamp: nowIso(), ...fields };
-  log("info", `→ ${fields.eventType}`, JSON.stringify(payload, null, 2));
-  try {
-    const data = await postJson(`/api/sessions/${state.sessionId}/events`, payload);
-    handleEventResponse(data);
-  } catch (e) {
-    log("error", "✕ Olay Hatası", formatError(e));
-  }
-}
-
-function handleEventResponse(data) {
-  if (typeof data.score === "number") setScore(data.score);
-
-  if (data.deviation) {
-    const d = data.deviation;
-    log(
-      "error",
-      `⚠ Sapma: ${d.deviationType}`,
-      `Beklenen: ${d.expected ?? "-"}\nGerçekleşen: ${d.actual ?? "-"}\nŞiddet: ${d.severity ?? "-"}\n${data.message ?? ""}`
-    );
-  } else {
-    log("success", "✓ Doğru Aksiyon", data.message || "Aksiyon kabul edildi.");
-  }
-
-  if (data.completed) {
-    log("info", "🏁 Prosedür Tamamlandı", "Raporu görmek için 'Seansı Bitir'e basın.");
-  } else if (data.nextStep) {
-    setStep(data.nextStep);
-  }
-}
-
-// ---- Seans bitir ----
 async function endSession() {
   if (!state.sessionId) return;
-  log("info", "→ Seans Bitir", `sessionId: ${state.sessionId}`);
   try {
     const report = await postJson(`/api/sessions/${state.sessionId}/complete`, {});
-    logJson("success", "← Rapor", report);
+    log("success", "← Rapor", report);
     showReport(report);
   } catch (e) {
     log("error", "✕ Bitirme Hatası", formatError(e));
@@ -183,8 +165,60 @@ async function endSession() {
     await disconnectHub();
     state.sessionId = null;
     state.currentStep = null;
+    release();
     els.startBtn.disabled = false;
     els.endBtn.disabled = true;
+  }
+}
+
+// ---- Olay gönderme ----
+async function sendEvent(fields) {
+  if (!state.sessionId) { toast("bad", "Önce seansı başlatın."); return; }
+  const payload = { eventId: crypto.randomUUID(), timestamp: nowIso(), ...fields };
+  log("info", `→ ${fields.eventType}`, payload);
+  try {
+    const data = await postJson(`/api/sessions/${state.sessionId}/events`, payload);
+    handleResponse(fields.eventType, data);
+  } catch (e) {
+    log("error", "✕ Olay Hatası", formatError(e));
+    toast("bad", "Olay gönderilemedi.");
+  }
+}
+
+function handleResponse(sentType, data) {
+  if (typeof data.score === "number") setScore(data.score);
+  const replay = (data.message || "").includes("yinelenen");
+
+  if (data.deviation) {
+    const d = data.deviation;
+    if (!replay) {
+      state.counters.wrong++;
+      if (d.deviationType === "STERILE_VIOLATION") state.counters.sterile++;
+    }
+    setVerdict("bad", `SAPMA: ${d.deviationType}`);
+    toast("bad", `${d.deviationType} — ${data.message || ""}`);
+    log("error", `⚠ Sapma: ${d.deviationType}`,
+      `Beklenen: ${d.expected ?? "-"}\nGerçekleşen: ${d.actual ?? "-"}\nŞiddet: ${d.severity ?? "-"}\n${data.message ?? ""}`);
+  } else if (sentType === "hint_requested") {
+    if (!replay) state.counters.hint++;
+    setVerdict("info", "İPUCU");
+    toast("info", data.message || "İpucu verildi.");
+    log("info", "💡 İpucu", data.message || "");
+  } else {
+    if (!replay) state.counters.correct++;
+    setVerdict("good", "DOĞRU İŞLEM ✓");
+    toast("good", data.message || "Doğru aksiyon.");
+    log("success", "✓ Doğru Aksiyon", data.message || "");
+  }
+  updateCounters();
+
+  if (data.completed) {
+    setStep(null);
+    markAllStepsDone();
+    setVerdict("good", "🏁 Prosedür tamamlandı — 'Bitir & Rapor'");
+    toast("good", "Prosedür tamamlandı! Raporu görün.");
+  } else if (data.nextStep) {
+    setStep(data.nextStep);
   }
 }
 
@@ -192,26 +226,15 @@ async function endSession() {
 async function connectHub() {
   try {
     const conn = new signalR.HubConnectionBuilder()
-      .withUrl(`${baseUrl()}/hubs/simulation`)
-      .withAutomaticReconnect()
-      .build();
-
-    conn.on("AiFeedback", (fb) => logAiFeedback(fb));
-    conn.on("ScoreUpdate", (upd) => {
-      if (upd && typeof upd.score === "number") {
-        setScore(upd.score);
-        log("info", "↺ Skor Güncellendi", `Yeni skor: ${upd.score}`);
-      }
-    });
-
+      .withUrl(`${baseUrl()}/hubs/simulation`).withAutomaticReconnect().build();
+    conn.on("AiFeedback", showAiFeedback);
+    conn.on("ScoreUpdate", (u) => { if (u && typeof u.score === "number") setScore(u.score); });
     conn.onreconnected(() => setConn(true));
     conn.onclose(() => setConn(false));
-
     await conn.start();
     await conn.invoke("JoinSession", state.sessionId);
     state.connection = conn;
     setConn(true);
-    log("info", "⇄ Hub Bağlandı", "AiFeedback ve ScoreUpdate dinleniyor.");
   } catch (e) {
     setConn(false);
     log("error", "✕ Hub Hatası", formatError(e));
@@ -219,107 +242,75 @@ async function connectHub() {
 }
 
 async function disconnectHub() {
-  if (state.connection) {
-    try { await state.connection.stop(); } catch { /* yoksay */ }
-    state.connection = null;
-  }
+  if (state.connection) { try { await state.connection.stop(); } catch {} state.connection = null; }
   setConn(false);
 }
 
-function logAiFeedback(fb) {
-  const block = document.createElement("div");
-  block.className = "ai-block";
+function showAiFeedback(fb) {
   const sev = fb.severity || "MEDIUM";
-  const line = (k, v) => v ? `<div class="ai-line"><span class="k">${k}:</span> ${v}</div>` : "";
-  block.innerHTML =
-    `<div class="ai-line"><span class="k">Adım:</span> ${fb.stepId ?? "-"} ` +
-    `<span class="sev sev-${sev}">${sev}</span> ` +
-    `<span class="k">${fb.deviationType ?? ""}</span></div>` +
+  const line = (k, v) => v ? `<div class="ai-line"><span class="k">${k}</span><span>${v}</span></div>` : "";
+  els.aiCard.classList.remove("empty");
+  els.aiCard.innerHTML =
+    `<div class="ai-head"><span class="sev sev-${sev}">${sev}</span>` +
+    `<span class="ai-dev">${fb.deviationType ?? ""}</span>` +
+    `<span class="ai-src">Kaynak: ${fb.source ?? "table"}</span></div>` +
     line("Olası Risk", fb.possibleRisk) +
     line("Açıklama", fb.explanation) +
-    line("Önerilen Müdahale", fb.recommendedAction) +
-    line("Kaynak", fb.source);
-  log("ai", "🧠 AI Geri Bildirim", block);
+    line("Önerilen Müdahale", fb.recommendedAction);
+  log("ai", "🧠 AI Geri Bildirim", `${fb.deviationType}\nRisk: ${fb.possibleRisk}\nAçıklama: ${fb.explanation}\nMüdahale: ${fb.recommendedAction}`);
 }
 
-// ---- UI güncelleyiciler ----
-function setScore(score) {
-  if (typeof score !== "number") return;
-  els.scoreValue.textContent = score;
-  const hue = Math.max(0, Math.min(120, (score / 100) * 120));
-  els.scoreValue.style.color = `hsl(${hue}, 70%, 55%)`;
+// ---- Sahne: elde tutma / teslim ----
+function pickUp(code) {
+  if (!state.sessionId) { toast("bad", "Önce seansı başlatın."); return; }
+  state.holding = code;
+  const ins = INSTRUMENT_CATALOG.find((i) => i.code === code);
+  els.handHolding.textContent = `${ins?.icon ?? ""} ${ins?.name ?? code}`;
+  els.handHolding.classList.remove("empty");
+  els.releaseBtn.disabled = false;
+  els.instrumentGrid.querySelectorAll(".tray-card").forEach((c) =>
+    c.classList.toggle("held", c.dataset.code === code));
+  document.querySelectorAll(".zone").forEach((z) => z.classList.add("armed"));
+  // Sütür gereken adımda doğru sütürü öner.
+  const step = stepMeta(state.currentStep?.stepId);
+  if (step?.suture && code === "NEEDLE_HOLDER") els.sutureSelect.value = step.suture;
 }
 
-function setStep(step) {
-  state.currentStep = step;
-  if (!step) return;
-  const id = step.stepId;
-  els.progressLabel.textContent = `Adım ${id} / ${TOTAL_STEPS}`;
-  els.progressBar.style.width = `${(id / TOTAL_STEPS) * 100}%`;
-
-  const allowed = step.allowedInstruments || [];
-  els.taskCard.classList.remove("empty");
-  els.taskCard.innerHTML = `
-    <div><span class="task-step-id">Adım ${id}</span></div>
-    <div class="task-title">${step.title ?? ""}</div>
-    <div class="task-row"><span class="k">Faz</span><span>${step.phase ?? "-"}</span></div>
-    <div class="task-row"><span class="k">Beklenen</span><span>${step.expectedEvent ?? "-"}</span></div>
-    <div class="task-row"><span class="k">Aletler</span>
-      <span class="chip-list">${allowed.map((c) => `<span class="chip hi">${c}</span>`).join("") || "<span class='muted'>-</span>"}</span>
-    </div>`;
-  highlightAllowed(allowed);
+function release() {
+  state.holding = null;
+  els.handHolding.textContent = "— (tepsiden bir alet seçin) —";
+  els.handHolding.classList.add("empty");
+  els.releaseBtn.disabled = true;
+  els.instrumentGrid.querySelectorAll(".tray-card.held").forEach((c) => c.classList.remove("held"));
+  document.querySelectorAll(".zone").forEach((z) => z.classList.remove("armed", "drag-over"));
 }
 
-function highlightAllowed(allowed) {
-  const set = new Set(allowed || []);
-  els.instrumentGrid.querySelectorAll("button[data-code]").forEach((btn) => {
-    btn.classList.toggle("allowed", set.has(btn.dataset.code));
-  });
-}
-
-// ---- Aksiyon kurma ----
-function buildInstrumentButtons() {
-  els.instrumentGrid.innerHTML = "";
-  for (const ins of INSTRUMENT_CATALOG) {
-    const btn = document.createElement("button");
-    btn.className = "btn btn-ghost";
-    btn.dataset.code = ins.code;
-    btn.innerHTML = `${ins.name}<small>${ins.code}</small>`;
-    btn.addEventListener("click", () => deliverInstrument(ins.code));
-    els.instrumentGrid.appendChild(btn);
-  }
-}
-
-function buildSutureOptions() {
-  for (const s of SUTURE_CATALOG) {
-    const opt = document.createElement("option");
-    opt.value = s.code;
-    opt.textContent = s.name;
-    els.sutureSelect.appendChild(opt);
-  }
-}
-
-function deliverInstrument(instrumentCode) {
-  const fields = {
-    eventType: "instrument_delivered",
-    instrumentCode,
-    target: els.targetSelect.value,
-  };
+function deliverToZone(zone) {
+  if (!state.holding) { toast("bad", "Önce tepsiden bir alet seçin/sürükleyin."); return; }
+  const map = ZONE_MAP[zone];
+  const fields = { eventType: map.eventType, instrumentCode: state.holding, target: map.target };
+  const step = stepMeta(state.currentStep?.stepId);
   const suture = els.sutureSelect.value;
-  if (suture) fields.sutureCode = suture;
+  if (suture && (step?.suture || state.holding === "NEEDLE_HOLDER")) fields.sutureCode = suture;
   sendEvent(fields);
+  release();
 }
 
-function sendCorrectInstrument() {
-  const allowed = state.currentStep?.allowedInstruments || [];
-  if (!allowed.length) {
-    log("error", "✕ Uyarı", "Mevcut adımda izinli alet yok.");
-    return;
-  }
-  deliverInstrument(allowed[0]);
+function autoDeliver() {
+  const step = state.currentStep;
+  if (!step) { toast("bad", "Aktif adım yok."); return; }
+  const meta = stepMeta(step.stepId);
+  if (meta?.event === "count_confirmed") { sendCount(); return; }
+  const code = (step.allowedInstruments || meta?.allowed || [])[0];
+  if (!code) { toast("bad", "Bu adımda izinli alet yok."); return; }
+  const map = ZONE_MAP[meta?.target || "SURGEON"];
+  const fields = { eventType: map.eventType, instrumentCode: code, target: map.target };
+  if (meta?.suture) fields.sutureCode = meta.suture;
+  sendEvent(fields);
+  release();
 }
 
-function sendCountConfirmed() {
+function sendCount() {
   sendEvent({
     eventType: "count_confirmed",
     counts: {
@@ -328,6 +319,124 @@ function sendCountConfirmed() {
       NEEDLE: Number(els.cntNeedle.value),
     },
   });
+}
+
+// ---- UI güncelleyiciler ----
+function setScore(score) {
+  if (typeof score !== "number") return;
+  els.scoreValue.textContent = score;
+  const hue = Math.max(0, Math.min(120, (score / 100) * 120));
+  els.scoreValue.style.color = `hsl(${hue}, 75%, 58%)`;
+}
+
+function setStep(step) {
+  state.currentStep = step;
+  if (!step) {
+    els.progressLabel.textContent = `Adım — / ${TOTAL_STEPS}`;
+    els.taskCard.classList.add("empty");
+    els.taskCard.innerHTML = `<p class="muted">Aktif görev yok.</p>`;
+    updateSceneMode(null);
+    return;
+  }
+  const id = step.stepId;
+  const meta = stepMeta(id);
+  els.progressLabel.textContent = `Adım ${id} / ${TOTAL_STEPS}`;
+  els.progressBar.style.width = `${(id / TOTAL_STEPS) * 100}%`;
+
+  const allowed = step.allowedInstruments?.length ? step.allowedInstruments : (meta?.allowed || []);
+  els.taskCard.classList.remove("empty");
+  els.taskCard.innerHTML = `
+    <div class="task-head"><span class="task-step-id">Adım ${id}</span><span class="task-phase">${meta?.phase ?? step.phase ?? ""}</span></div>
+    <div class="task-title">${step.title ?? meta?.title ?? ""}</div>
+    <div class="task-instruction">${meta?.instruction ?? ""}</div>
+    <div class="task-row"><span class="k">Beklenen olay</span><span class="chip">${step.expectedEvent ?? meta?.event ?? "-"}</span></div>
+    <div class="task-row"><span class="k">Doğru alet</span><span class="chip-list">${allowed.map((c) => `<span class="chip hi">${labelOf(c)}</span>`).join("") || "<span class='muted'>-</span>"}</span></div>`;
+
+  updateSceneMode(step);
+  updateStepList(id);
+}
+
+function labelOf(code) {
+  return INSTRUMENT_CATALOG.find((i) => i.code === code)?.name ?? code;
+}
+
+function updateSceneMode(step) {
+  const meta = step ? stepMeta(step.stepId) : null;
+  const isCount = meta?.event === "count_confirmed";
+  els.countMode.classList.toggle("hidden", !isCount);
+  els.trayWrap.classList.toggle("dim", isCount);
+
+  if (isCount && meta?.counts) {
+    els.cntCompress.value = meta.counts.COMPRESS;
+    els.cntInstrument.value = meta.counts.INSTRUMENT;
+    els.cntNeedle.value = meta.counts.NEEDLE;
+  }
+
+  // Sütür seçici görünürlüğü.
+  const needsSuture = !!meta?.suture;
+  els.sutureWrap.classList.toggle("hidden", !needsSuture);
+  if (needsSuture) els.sutureSelect.value = meta.suture;
+
+  // Beklenen alet vurgusu.
+  const allowed = new Set(step ? (step.allowedInstruments?.length ? step.allowedInstruments : meta?.allowed || []) : []);
+  els.instrumentGrid.querySelectorAll(".tray-card").forEach((c) =>
+    c.classList.toggle("expected", allowed.has(c.dataset.code)));
+
+  // Beklenen bölge vurgusu.
+  const zone = meta?.target || "SURGEON";
+  document.querySelectorAll(".zone").forEach((z) =>
+    z.classList.toggle("expected", !isCount && z.dataset.zone === zone));
+}
+
+function setVerdict(kind, text) {
+  els.verdictBanner.textContent = text;
+  els.verdictBanner.className = `verdict verdict-${kind}`;
+}
+
+function resetCounters() {
+  state.counters = { correct: 0, wrong: 0, sterile: 0, hint: 0 };
+  updateCounters();
+  els.aiCard.classList.add("empty");
+  els.aiCard.innerHTML = `<p class="muted">Bir hata yaptığınızda, olası klinik komplikasyon ve doğru müdahale açıklaması burada belirir.</p>`;
+}
+
+function updateCounters() {
+  els.cntCorrect.textContent = state.counters.correct;
+  els.cntWrong.textContent = state.counters.wrong;
+  els.cntSterile.textContent = state.counters.sterile;
+  els.cntHint.textContent = state.counters.hint;
+}
+
+// ---- Kontrol listesi ----
+function buildStepList() {
+  els.stepList.innerHTML = "";
+  for (const s of STEPS) {
+    const li = document.createElement("li");
+    li.className = "step-item pending";
+    li.dataset.id = s.id;
+    li.innerHTML = `<span class="step-mark">○</span><span class="step-txt"><b>${s.id}.</b> ${s.title}</span>`;
+    els.stepList.appendChild(li);
+  }
+}
+
+function updateStepList(currentId) {
+  els.stepList.querySelectorAll(".step-item").forEach((li) => {
+    const id = Number(li.dataset.id);
+    li.classList.remove("done", "active", "pending");
+    if (id < currentId) { li.classList.add("done"); li.querySelector(".step-mark").textContent = "✔"; }
+    else if (id === currentId) { li.classList.add("active"); li.querySelector(".step-mark").textContent = "▶"; }
+    else { li.classList.add("pending"); li.querySelector(".step-mark").textContent = "○"; }
+  });
+  const active = els.stepList.querySelector(".step-item.active");
+  if (active) active.scrollIntoView({ block: "nearest" });
+}
+
+function markAllStepsDone() {
+  els.stepList.querySelectorAll(".step-item").forEach((li) => {
+    li.classList.remove("active", "pending"); li.classList.add("done");
+    li.querySelector(".step-mark").textContent = "✔";
+  });
+  els.progressBar.style.width = "100%";
 }
 
 // ---- Rapor ----
@@ -348,34 +457,69 @@ function showReport(report) {
 
 // ---- Genel ----
 function setConn(on) {
-  els.connState.textContent = on ? "Bağlı" : "Bağlı değil";
+  els.connState.textContent = on ? "● Canlı" : "● Bağlı değil";
   els.connState.className = `conn-badge ${on ? "conn-on" : "conn-off"}`;
 }
 
 function formatError(e) {
-  if (e.data) return `${e.message}\n${JSON.stringify(e.data, null, 2)}`;
-  return e.message || String(e);
+  return e.data ? `${e.message}\n${JSON.stringify(e.data, null, 2)}` : (e.message || String(e));
 }
 
-// ---- Olay bağlama ----
-function bindEvents() {
-  els.startBtn.addEventListener("click", startSession);
-  els.endBtn.addEventListener("click", endSession);
-  els.correctBtn.addEventListener("click", sendCorrectInstrument);
-  els.clearLogBtn.addEventListener("click", () => (els.log.innerHTML = ""));
-  els.closeReportBtn.addEventListener("click", () => els.reportModal.classList.add("hidden"));
+// ---- Kurulum ----
+function buildTray() {
+  els.instrumentGrid.innerHTML = "";
+  for (const ins of INSTRUMENT_CATALOG) {
+    const card = document.createElement("div");
+    card.className = "tray-card";
+    card.dataset.code = ins.code;
+    card.draggable = true;
+    card.innerHTML = `<span class="tray-ic">${ins.icon}</span><span class="tray-nm">${ins.name}</span>`;
+    card.addEventListener("click", () => pickUp(ins.code));
+    card.addEventListener("dragstart", (e) => { pickUp(ins.code); e.dataTransfer.setData("text/plain", ins.code); });
+    els.instrumentGrid.appendChild(card);
+  }
+}
 
-  els.countBtn.addEventListener("click", () => els.countPanel.classList.toggle("hidden"));
-  els.countSendBtn.addEventListener("click", sendCountConfirmed);
+function buildSutures() {
+  for (const s of SUTURE_CATALOG) {
+    const opt = document.createElement("option");
+    opt.value = s.code; opt.textContent = s.name;
+    els.sutureSelect.appendChild(opt);
+  }
+}
 
-  // Özel event butonları (data-evt)
-  document.querySelectorAll("button[data-evt]").forEach((btn) => {
-    btn.addEventListener("click", () => sendEvent({ eventType: btn.dataset.evt }));
+function bindZones() {
+  document.querySelectorAll(".zone").forEach((z) => {
+    z.addEventListener("click", () => deliverToZone(z.dataset.zone));
+    z.addEventListener("dragover", (e) => { e.preventDefault(); z.classList.add("drag-over"); });
+    z.addEventListener("dragleave", () => z.classList.remove("drag-over"));
+    z.addEventListener("drop", (e) => { e.preventDefault(); z.classList.remove("drag-over"); deliverToZone(z.dataset.zone); });
   });
 }
 
+function bindEvents() {
+  els.startBtn.addEventListener("click", startSession);
+  els.endBtn.addEventListener("click", endSession);
+  els.autoBtn.addEventListener("click", autoDeliver);
+  els.releaseBtn.addEventListener("click", release);
+  els.countSendBtn.addEventListener("click", sendCount);
+  els.clearLogBtn.addEventListener("click", () => (els.log.innerHTML = ""));
+  els.logToggle.addEventListener("click", () => {
+    els.log.classList.toggle("hidden");
+    els.logToggle.textContent = els.log.classList.contains("hidden")
+      ? "▸ Geliştirici Günlüğü (JSON)" : "▾ Geliştirici Günlüğü (JSON)";
+  });
+  els.helpBtn.addEventListener("click", () => els.helpModal.classList.remove("hidden"));
+  els.closeHelpBtn.addEventListener("click", () => els.helpModal.classList.add("hidden"));
+  els.closeReportBtn.addEventListener("click", () => els.reportModal.classList.add("hidden"));
+  document.querySelectorAll("button[data-evt]").forEach((btn) =>
+    btn.addEventListener("click", () => sendEvent({ eventType: btn.dataset.evt })));
+}
+
 // ---- Başlangıç ----
-buildInstrumentButtons();
-buildSutureOptions();
+buildTray();
+buildSutures();
+buildStepList();
+bindZones();
 bindEvents();
 setConn(false);
