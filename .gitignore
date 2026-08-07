@@ -1,0 +1,29 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+
+# .NET
+project.lock.json
+artifacts/
+*.nupkg
+
+# Rider / VS
+.idea/
+.vs/
+
+# Env & secrets
+.env
+*.local.json
+appsettings.*.Local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (simulator dev server, if any)
+node_modules/
+
+# Logs
+*.log

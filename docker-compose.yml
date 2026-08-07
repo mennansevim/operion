@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: operion-postgres
+    environment:
+      POSTGRES_DB: operion
+      POSTGRES_USER: operion
+      POSTGRES_PASSWORD: operion
+    ports:
+      - "5432:5432"
+    volumes:
+      - operion_pgdata:/var/lib/postgresql/data
+
+volumes:
+  operion_pgdata:

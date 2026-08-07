@@ -1,0 +1,38 @@
+{
+  "scenarios": [
+    {
+      "scenarioId": "case-basic-01",
+      "name": "Standart Açık Apendektomi",
+      "difficulty": "BEGINNER",
+      "procedureCode": "OPEN_APPENDECTOMY",
+      "patient": { "bodyType": "NORMAL", "hasAdhesion": false },
+      "enabledErrors": [
+        "WRONG_INSTRUMENT",
+        "STERILE_VIOLATION",
+        "COUNT_MISMATCH",
+        "INSTRUMENT_DROPPED",
+        "CONTAMINATED_TOOL_REUSE",
+        "WRONG_ORDER"
+      ],
+      "startingScore": 100,
+      "description": "Komplikasyonsuz, normal anatomili bir hastada standart açık apendektomi. Scrub teknikeri doğru aleti doğru sırayla ve steril teknikle teslim etmeyi, uç değişimi ve kapanış öncesi sayımı öğrenir. Yapışıklık yoktur; diseksiyon planları belirgindir."
+    },
+    {
+      "scenarioId": "case-adhesion-01",
+      "name": "Yapışıklıklı Vaka",
+      "difficulty": "INTERMEDIATE",
+      "procedureCode": "OPEN_APPENDECTOMY",
+      "patient": { "bodyType": "NORMAL", "hasAdhesion": true },
+      "enabledErrors": [
+        "WRONG_INSTRUMENT",
+        "STERILE_VIOLATION",
+        "COUNT_MISMATCH",
+        "INSTRUMENT_DROPPED",
+        "CONTAMINATED_TOOL_REUSE",
+        "WRONG_ORDER"
+      ],
+      "startingScore": 100,
+      "description": "Geçirilmiş inflamasyona bağlı yapışıklıkların bulunduğu ileri düzey vaka. Çekum ve appendiksin serbestlenmesi için ek keskin ve künt diseksiyon (mayo makası, monopolar koter) gerekir; diseksiyon planları belirsiz olduğundan atravmatik alet seçimi ve dikkatli alet teslimi kritiktir. Doku frajil olduğu için yanlış alet seçimi seroza yaralanması ve kanama riskini artırır."
+    }
+  ]
+}

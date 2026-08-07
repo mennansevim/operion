@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operion — Olay Simülatörü</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Üst Bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">⊕</span>
+      <div>
+        <div class="brand-title">Operion</div>
+        <div class="brand-sub">Açık Apendektomi — Olay Simülatörü</div>
+      </div>
+    </div>
+
+    <div class="topbar-controls">
+      <label class="field">
+        <span>Backend URL</span>
+        <input id="baseUrl" type="text" value="http://localhost:5080" />
+      </label>
+      <label class="field">
+        <span>Senaryo</span>
+        <select id="scenario">
+          <option value="case-basic-01">Standart Açık Apendektomi</option>
+          <option value="case-adhesion-01">Yapışıklıklı Vaka</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Kullanıcı</span>
+        <input id="userId" type="text" value="u1" />
+      </label>
+      <button id="startBtn" class="btn btn-primary">Seansı Başlat</button>
+      <button id="endBtn" class="btn btn-danger" disabled>Seansı Bitir</button>
+    </div>
+
+    <div class="topbar-status">
+      <div class="score-box">
+        <div class="score-label">Skor</div>
+        <div id="scoreValue" class="score-value">—</div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-meta">
+          <span id="progressLabel">Adım 0 / 18</span>
+          <span id="connState" class="conn-badge conn-off">Bağlı değil</span>
+        </div>
+        <div class="progress-track">
+          <div id="progressBar" class="progress-fill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Sol Panel: Mevcut Görev -->
+    <section class="panel">
+      <h2 class="panel-title">Mevcut Görev</h2>
+      <div id="taskCard" class="task-card empty">
+        <p class="muted">Seans başlatılmadı.</p>
+      </div>
+    </section>
+
+    <!-- Orta Panel: Aksiyonlar -->
+    <section class="panel">
+      <h2 class="panel-title">Aksiyonlar</h2>
+
+      <div class="action-controls">
+        <label class="field">
+          <span>Hedef</span>
+          <select id="targetSelect">
+            <option value="SURGEON">SURGEON</option>
+            <option value="DIRTY_AREA">DIRTY_AREA</option>
+            <option value="PATHOLOGY_CONTAINER">PATHOLOGY_CONTAINER</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Sütür</span>
+          <select id="sutureSelect">
+            <option value="">(yok)</option>
+          </select>
+        </label>
+        <button id="correctBtn" class="btn btn-success">Doğru Aleti Gönder</button>
+      </div>
+
+      <h3 class="subhead">Aletler (instrument_delivered)</h3>
+      <div id="instrumentGrid" class="instrument-grid"></div>
+
+      <h3 class="subhead">Özel Olaylar</h3>
+      <div class="special-grid">
+        <button data-evt="sterile_area_violated" class="btn btn-warn">Steril Alan İhlali</button>
+        <button data-evt="instrument_dropped" class="btn btn-warn">Alet Düştü</button>
+        <button id="countBtn" class="btn btn-ghost">Sayımı Onayla</button>
+        <button data-evt="step_completed" class="btn btn-ghost">Adımı Tamamla</button>
+        <button data-evt="hint_requested" class="btn btn-ghost">İpucu İste</button>
+      </div>
+
+      <!-- Sayım giriş alanı -->
+      <div id="countPanel" class="count-panel hidden">
+        <div class="count-inputs">
+          <label class="field"><span>COMPRESS</span><input id="cntCompress" type="number" value="10" /></label>
+          <label class="field"><span>INSTRUMENT</span><input id="cntInstrument" type="number" value="20" /></label>
+          <label class="field"><span>NEEDLE</span><input id="cntNeedle" type="number" value="3" /></label>
+        </div>
+        <button id="countSendBtn" class="btn btn-primary">Sayımı Gönder</button>
+      </div>
+    </section>
+
+    <!-- Sağ Panel: Canlı Akış -->
+    <section class="panel log-panel">
+      <div class="log-header">
+        <h2 class="panel-title">Canlı Akış (Log)</h2>
+        <button id="clearLogBtn" class="btn btn-mini">Temizle</button>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <!-- Rapor Modalı -->
+  <div id="reportModal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Seans Raporu</h2>
+      <div id="reportBody" class="report-body"></div>
+      <button id="closeReportBtn" class="btn btn-primary">Kapat</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
